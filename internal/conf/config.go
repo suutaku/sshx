@@ -33,6 +33,10 @@ var defaultConfig = Configure{
 			{
 				URLs: []string{
 					"stun:stun.l.google.com:19302",
+					"stun:stun1.l.google.com:19302",
+					"stun:stun2.l.google.com:19302",
+					"stun:stun3.l.google.com:19302",
+					"stun:stun4.l.google.com:19302",
 				},
 			},
 		},
@@ -41,7 +45,7 @@ var defaultConfig = Configure{
 
 func NewConfigure(path string) *Configure {
 	var tmp Configure
-	viper.SetConfigName("config")
+	viper.SetConfigName(".sshx_config")
 	viper.SetConfigType("json")
 	viper.AddConfigPath(path)
 	viper.WatchConfig()

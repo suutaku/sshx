@@ -85,12 +85,7 @@ func (node *Node) Start(ctx context.Context) {
 				log.Println(err)
 				continue
 			}
-			sshxKey := os.Getenv("SSHX_KEY")
-			if sshxKey == "" {
-				log.Println("SSHX_KEY (target id) is empty")
-				continue
-			}
-			go node.connect(ctx, sshxKey, sock)
+			go node.connect(ctx, sock)
 		}
 	}()
 }
@@ -101,7 +96,8 @@ func (node *Node) serve(ctx context.Context) {
 	for v := range node.pull(ctx, node.ID) {
 		log.Printf("info: %#v", v)
 		if v.Flag == FLAG_CANDIDATE && node.PeerConnections[v.Source] != nil {
-			if candidateErr := node.PeerConnections[v.Source].AddICECandidate(webrtc.ICECandidateInit{Candidate: string(v.Candidate)}); candidateErr != nil {
+			if candidateErr := node.PeerConnections[v.Source].
+				AddICECandidate(webrtc.ICECandidateInit{Candidate: string(v.Candidate)}); candidateErr != nil {
 				log.Println(candidateErr)
 			}
 			log.Println("Add candidate!!")
@@ -161,6 +157,9 @@ func (node *Node) serve(ctx context.Context) {
 			dc.OnOpen(func() {
 				log.Println("wrap to ssh dc")
 				io.Copy(&sendWrap{dc}, ssh)
+				pc.Close()
+				ssh.Close()
+				delete(node.PeerConnections, v.Source)
 			})
 			dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 				_, err := ssh.Write(msg.Data)
@@ -170,6 +169,11 @@ func (node *Node) serve(ctx context.Context) {
 					delete(node.PeerConnections, v.Source)
 					return
 				}
+			})
+			dc.OnClose(func() {
+				pc.Close()
+				ssh.Close()
+				delete(node.PeerConnections, v.Source)
 			})
 			//dc.Unlock()
 		})
@@ -217,8 +221,13 @@ func (node *Node) serve(ctx context.Context) {
 	}
 }
 
-func (node *Node) connect(ctx context.Context, key string, sock net.Conn) {
-
+func (node *Node) connect(ctx context.Context, sock net.Conn) {
+	key := os.Getenv("SSHX_KEY")
+	if key == "" {
+		log.Println("SSHX_KEY (target id) is empty")
+		sock.Close()
+		return
+	}
 	pc, err := webrtc.NewPeerConnection(node.RTCConf)
 	if err != nil {
 		log.Println("rtc error:", err)
@@ -252,6 +261,11 @@ func (node *Node) connect(ctx context.Context, key string, sock net.Conn) {
 	dc.OnOpen(func() {
 		log.Println("wrap sock to dc")
 		io.Copy(&sendWrap{dc}, sock)
+		pc.Close()
+		sock.Close()
+		delete(node.PeerConnections, key)
+	})
+	dc.OnClose(func() {
 		pc.Close()
 		sock.Close()
 		delete(node.PeerConnections, key)
@@ -297,7 +311,8 @@ func (node *Node) connect(ctx context.Context, key string, sock net.Conn) {
 		for v := range node.pull(ctx, node.ID) {
 			log.Printf("info: %#v", v)
 			if v.Flag == FLAG_CANDIDATE && node.PeerConnections[key] != nil {
-				if candidateErr := node.PeerConnections[key].AddICECandidate(webrtc.ICECandidateInit{Candidate: string(v.Candidate)}); candidateErr != nil {
+				if candidateErr := node.PeerConnections[key].
+					AddICECandidate(webrtc.ICECandidateInit{Candidate: string(v.Candidate)}); candidateErr != nil {
 					log.Println(candidateErr)
 				}
 				continue
@@ -319,6 +334,14 @@ func (node *Node) connect(ctx context.Context, key string, sock net.Conn) {
 				node.candidatesMux.Unlock()
 			}
 		}
+		defer func() {
+			log.Println("Cancel connection")
+			pc.Close()
+			sock.Close()
+			delete(node.PeerConnections, key)
+			return
+		}()
+
 	}(ctx2, cancel2)
 	offer, err := pc.CreateOffer(nil)
 	if err != nil {
@@ -348,7 +371,8 @@ func (node *Node) push(info ConnectInfo, target string) error {
 	if err := json.NewEncoder(buf).Encode(info); err != nil {
 		return err
 	}
-	resp, err := http.Post(node.SignalingServerAddr+path.Join("/", "push", target), "application/json", buf)
+	resp, err := http.Post(node.SignalingServerAddr+
+		path.Join("/", "push", target), "application/json", buf)
 	if err != nil {
 		return err
 	}
@@ -371,7 +395,8 @@ func (node *Node) pull(ctx context.Context, id string) <-chan ConnectInfo {
 		}
 		defer close(ch)
 		for {
-			req, err := http.NewRequest("GET", node.SignalingServerAddr+path.Join("/", "pull", id), nil)
+			req, err := http.NewRequest("GET", node.SignalingServerAddr+
+				path.Join("/", "pull", id), nil)
 			if err != nil {
 				if ctx.Err() == context.Canceled {
 					return
@@ -404,7 +429,8 @@ func (node *Node) pull(ctx context.Context, id string) <-chan ConnectInfo {
 				faild()
 				continue
 			}
-			if len(info.Source) < 0 || (info.Flag != FLAG_CANDIDATE && len(info.SDP) < 0) {
+			if len(info.Source) < 0 ||
+				(info.Flag != FLAG_CANDIDATE && len(info.SDP) < 0) {
 
 			} else {
 				ch <- info

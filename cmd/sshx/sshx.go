@@ -12,7 +12,12 @@ func main() {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT)
 	ctx, cancel := context.WithCancel(context.Background())
-	node := node.NewNode(".")
+	path := "."
+	home := os.Getenv("HOME")
+	if home != "" {
+		path = home
+	}
+	node := node.NewNode(path)
 	node.Start(ctx)
 	<-sig
 	cancel()
