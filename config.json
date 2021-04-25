@@ -1,24 +1,17 @@
 {
   "fullnode": false,
-  "id": "42463231-299e-4572-8178-7eda86bcb6bc",
+  "id": "3864e6f5-5251-4257-9af1-eba12813d186",
+  "key": "57b6134c-f569-45b8-9309-14ab33b86d3d",
   "locallistenaddr": "127.0.0.1:2222",
   "localsshaddr": "127.0.0.1:22",
   "rtcconf": {
-    "bundlepolicy": 0,
-    "icecandidatepoolsize": 0,
     "iceservers": [
       {
-        "Credential": null,
-        "CredentialType": 0,
-        "URLs": [
+        "urls": [
           "stun:stun.l.google.com:19302"
-        ],
-        "Username": ""
+        ]
       }
-    ],
-    "icetransportpolicy": 0,
-    "peeridentity": "",
-    "rtcpmuxpolicy": 0
+    ]
   },
   "signalingserveraddr": "http://peer1.cotnetwork.com:8990"
 }
