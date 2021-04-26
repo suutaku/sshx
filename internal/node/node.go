@@ -53,9 +53,9 @@ type Node struct {
 	candidateMux    sync.Mutex
 }
 
-func NewNode(path string) *Node {
+func NewNode(cnf *conf.Configure) *Node {
 	return &Node{
-		Configure:       conf.NewConfigure(path),
+		Configure:       cnf,
 		ConnectionPairs: make(map[string]*ConnectionPair),
 		PendingCadidate: make(map[string][]*webrtc.ICECandidateInit),
 	}
