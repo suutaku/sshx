@@ -78,6 +78,11 @@ At **client** mode, specify target ID by environment variable **SSHX_KEY**.
 
 ```
 export SSHX_KEY=[your target device id]
+sshx
+```
+And open a new terminal, run:
+
+```
 ssh -p 2222 127.0.0.1
 ```
 
