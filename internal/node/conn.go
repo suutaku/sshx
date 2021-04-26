@@ -15,20 +15,25 @@ type ConnectionPair struct {
 	ID                 int64
 	Context            context.Context
 	Type               string
+	Exit               chan int
 }
 
-func NewConnectionPair(cnf webrtc.Configuration, sc *net.Conn, cType string) *ConnectionPair {
+func NewConnectionPair(cnf webrtc.Configuration, sc *net.Conn, cType string, connID int64) *ConnectionPair {
 
 	pc, err := webrtc.NewPeerConnection(cnf)
 	if err != nil {
 		log.Println("rtc error:", err)
 		return nil
 	}
+	if connID == 0 {
+		connID = time.Now().UnixNano()
+	}
 	cp := ConnectionPair{
 		PeerConnection:     pc,
 		LocalSSHConnection: sc,
-		ID:                 time.Now().UnixNano(),
+		ID:                 connID,
 		Type:               cType,
+		Exit:               make(chan int),
 	}
 
 	cp.PeerConnection.OnICEConnectionStateChange(func(state webrtc.ICEConnectionState) {
@@ -56,6 +61,7 @@ func NewConnectionPair(cnf webrtc.Configuration, sc *net.Conn, cType string) *Co
 		}
 		dc.OnOpen(func() {
 			log.Println("wrap to ssh dc")
+			cp.Exit <- 0
 			io.Copy(&sendWrap{dc}, *(cp.LocalSSHConnection))
 			cp.Close()
 		})
@@ -74,6 +80,7 @@ func NewConnectionPair(cnf webrtc.Configuration, sc *net.Conn, cType string) *Co
 		cp.PeerConnection.OnDataChannel(func(dc *webrtc.DataChannel) {
 			//dc.Lock()
 			dc.OnOpen(func() {
+				cp.Exit <- 0
 				log.Println("wrap to ssh dc")
 				io.Copy(&sendWrap{dc}, *(cp.LocalSSHConnection))
 				cp.Close()
@@ -121,11 +128,12 @@ func (cp *ConnectionPair) Anwser(v ConnectInfo, id string) *ConnectInfo {
 		Flag:   FLAG_ANWER,
 		SDP:    answer.SDP,
 		Source: id,
+		ID:     v.ID,
 	}
 	return &r
 }
 
-func (cp *ConnectionPair) Offer(id string) *ConnectInfo {
+func (cp *ConnectionPair) Offer(id int64, selfID string) *ConnectInfo {
 
 	offer, err := cp.PeerConnection.CreateOffer(nil)
 	if err != nil {
@@ -140,10 +148,10 @@ func (cp *ConnectionPair) Offer(id string) *ConnectInfo {
 	}
 	info := ConnectInfo{
 		Flag:   FLAG_OFFER,
-		Source: id,
+		Source: selfID,
 		SDP:    offer.SDP,
+		ID:     id,
 	}
-	log.Println(offer)
 	return &info
 }
 
@@ -156,6 +164,7 @@ func (cp *ConnectionPair) MakeConnection(info ConnectInfo) {
 		cp.Close()
 		return
 	}
+	log.Println("Make connection")
 }
 
 func (cp *ConnectionPair) Close() {
@@ -165,23 +174,20 @@ func (cp *ConnectionPair) Close() {
 	if cp.LocalSSHConnection != nil {
 		(*cp.LocalSSHConnection).Close()
 	}
+
 }
 
-func (cp *ConnectionPair) AddCandidate(ca *webrtc.ICECandidateInit, id int64) {
-	if cp != nil && id == cp.ID {
-		log.Println("Add cadidate!")
-
-		err := cp.PeerConnection.AddICECandidate(*ca)
-		if err != nil {
-			log.Println(err, cp.ID, id)
-		}
-	} else {
-		log.Println("Dismatched candidate id ", cp.ID, id)
+func (cp *ConnectionPair) AddCandidate(ca *webrtc.ICECandidateInit) {
+	err := cp.PeerConnection.AddICECandidate(*ca)
+	if err != nil {
+		log.Println(err)
 	}
+	log.Println("add cadidate done")
 }
 
 func (cp *ConnectionPair) IsRemoteDscripterSet() bool {
 	if cp.PeerConnection.RemoteDescription() == nil {
+		log.Println("Remote description not set yet!!!!!!!")
 		return false
 	}
 	return true

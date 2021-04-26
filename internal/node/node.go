@@ -11,7 +11,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"os"
 	"path"
 	"sync"
 	"time"
@@ -47,79 +46,89 @@ func (s *sendWrap) Write(b []byte) (int, error) {
 
 type Node struct {
 	*conf.Configure
-	ConnectionPairs map[string]*ConnectionPair
+	ConnectionPairs map[int64]*ConnectionPair
 	connectionMux   sync.Mutex
-	PendingCadidate map[string][]*webrtc.ICECandidateInit
+	PendingCadidate map[int64][]*webrtc.ICECandidateInit
 	candidateMux    sync.Mutex
 }
 
-func NewNode(path string) *Node {
+func NewNode(cnf *conf.Configure) *Node {
 	return &Node{
-		Configure:       conf.NewConfigure(path),
-		ConnectionPairs: make(map[string]*ConnectionPair),
-		PendingCadidate: make(map[string][]*webrtc.ICECandidateInit),
+		Configure:       cnf,
+		ConnectionPairs: make(map[int64]*ConnectionPair),
+		PendingCadidate: make(map[int64][]*webrtc.ICECandidateInit),
 	}
 }
 
-func (node *Node) CloseConnections(key string) {
+func (node *Node) CloseConnections(key int64) {
+	log.Println("close start")
 	node.candidateMux.Lock()
 	delete(node.PendingCadidate, key)
 	node.candidateMux.Unlock()
-
-	node.connectionMux.Lock()
-	defer node.connectionMux.Unlock()
+	log.Println("cadiate close done")
 	if node.ConnectionPairs[key] != nil {
+		log.Println("pair start")
+		node.connectionMux.Lock()
 		node.ConnectionPairs[key].Close()
+		close(node.ConnectionPairs[key].Exit)
 		delete(node.ConnectionPairs, key)
+		node.ConnectionPairs[key] = nil
+		node.connectionMux.Unlock()
 		log.Println("Node close connection pair of ", key)
 	}
 }
 
-func (node *Node) OpenConnections(key string, cType string, sc *net.Conn) {
-	node.CloseConnections(key + cType)
-	node.connectionMux.Lock()
-	defer node.connectionMux.Unlock()
-	node.ConnectionPairs[key+cType] = NewConnectionPair(node.RTCConf, sc, cType)
-	node.ConnectionPairs[key+cType].PeerConnection.OnICECandidate(func(c *webrtc.ICECandidate) {
-		node.SignalCandidate(key+cType, c)
-	})
-}
-
-func (node *Node) SetConnectionPairID(key string, id int64) {
-	if node.ConnectionPairs[key] != nil {
-		node.ConnectionPairs[key].ID = id
+func (node *Node) OpenConnections(sc *net.Conn, cType string, connID int64) *ConnectionPair {
+	tmp := NewConnectionPair(node.RTCConf, sc, cType, connID)
+	if tmp == nil {
+		return nil
 	}
+	node.connectionMux.Lock()
+	node.ConnectionPairs[tmp.ID] = tmp
+	node.connectionMux.Unlock()
+	return tmp
 }
 
-func (node *Node) AddCandidate(key string, ca *webrtc.ICECandidateInit, id int64) {
+func (node *Node) SetConnectionPairID(id int64, newID int64) {
+	log.Println("Server befor change id ", node.ConnectionPairs[id].ID)
+	node.connectionMux.Lock()
+	node.ConnectionPairs[newID] = node.ConnectionPairs[id]
+	node.ConnectionPairs[newID].ID = newID
+	node.connectionMux.Unlock()
+	log.Println("Server after id ", node.ConnectionPairs[newID].ID)
+}
+
+func (node *Node) AddCandidate(ca *webrtc.ICECandidateInit, id int64) {
 	node.candidateMux.Lock()
 	if ca != nil {
-		node.PendingCadidate[key] = append(node.PendingCadidate[key], ca)
+		node.PendingCadidate[id] = append(node.PendingCadidate[id], ca)
 	}
-	if node.ConnectionPairs[key] != nil && node.ConnectionPairs[key].IsRemoteDscripterSet() {
-		for _, v := range node.PendingCadidate[key] {
-			node.ConnectionPairs[key].AddCandidate(v, id)
+	if node.ConnectionPairs[id] != nil && node.ConnectionPairs[id].IsRemoteDscripterSet() {
+		for _, v := range node.PendingCadidate[id] {
+			node.ConnectionPairs[id].AddCandidate(v)
 		}
-		delete(node.PendingCadidate, key)
+		delete(node.PendingCadidate, id)
+		log.Println("Add Candidate info xxx", id)
 	}
 	node.candidateMux.Unlock()
 }
 
-func (node *Node) SignalCandidate(addr string, c *webrtc.ICECandidate) {
+func (node *Node) SignalCandidate(id int64, addr string, c *webrtc.ICECandidate) {
 	if c == nil {
 		return
 	}
-	if node.ConnectionPairs[addr] == nil {
+	if node.ConnectionPairs[id] == nil {
+		log.Println("Connection not exists !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 		return
 	}
 	info := ConnectInfo{
 		Flag:      FLAG_CANDIDATE,
 		Source:    node.ID,
 		Candidate: []byte(c.ToJSON().Candidate),
-		ID:        node.ConnectionPairs[addr].ID,
+		ID:        id,
 	}
 	node.push(info, addr)
-	log.Println("Push candidate!")
+	log.Println("Push candidate", info.ID, addr)
 
 }
 
@@ -153,62 +162,106 @@ func (node *Node) Anwser(info ConnectInfo) *ConnectInfo {
 	ssh, err := net.Dial("tcp", node.LocalSSHAddr)
 	if err != nil {
 		log.Println("ssh dial filed:", err)
-		node.CloseConnections(info.Source + CP_TYPE_CLIENT)
+		node.CloseConnections(info.ID)
 		return nil
 	}
-	node.OpenConnections(info.Source, CP_TYPE_CLIENT, &ssh)
-	node.SetConnectionPairID(info.Source+CP_TYPE_CLIENT, info.ID)
-	return node.ConnectionPairs[info.Source+CP_TYPE_CLIENT].Anwser(info, node.ID)
+	conn := node.OpenConnections(&ssh, CP_TYPE_CLIENT, info.ID)
+	log.Println("Server create a connection with id ", conn.ID)
+	conn.PeerConnection.OnICECandidate(func(c *webrtc.ICECandidate) {
+		node.SignalCandidate(info.ID, info.Source+CP_TYPE_CLIENT, c)
+	})
+	return conn.Anwser(info, node.ID)
 }
 
-func (node *Node) Offer(key string) *ConnectInfo {
-	info := node.ConnectionPairs[key].Offer(node.ID)
-	info.ID = node.ConnectionPairs[key].ID
+func (node *Node) Offer(id int64) *ConnectInfo {
+	info := node.ConnectionPairs[id].Offer(id, node.ID)
 	return info
 }
 
 func (node *Node) Serve(ctx context.Context) {
-	for v := range node.pull(ctx, node.ID+CP_TYPE_SERVER) {
-		log.Printf("info: %#v", v)
-		switch v.Flag {
-		case FLAG_OFFER:
-			tmp := node.Anwser(v)
-			if tmp != nil {
-				node.push(*tmp, v.Source+CP_TYPE_CLIENT)
+	for {
+		select {
+		case v := <-node.pull(ctx, node.ID+CP_TYPE_SERVER):
+			switch v.Flag {
+			case FLAG_OFFER:
+				log.Println("Offer info", v.ID)
+				tmp := node.Anwser(v)
+				if tmp != nil {
+					node.push(*tmp, v.Source+CP_TYPE_CLIENT)
+					log.Println("Push anwsesr ", v.Source+CP_TYPE_CLIENT, v.ID)
+				}
+			case FLAG_CANDIDATE:
+				log.Println("Candidate info", v.ID)
+				node.AddCandidate(&webrtc.ICECandidateInit{Candidate: string(v.Candidate)}, v.ID)
+			case FLAG_ANWER:
+				log.Println("Bad connection info")
+			case FLAG_UNKNOWN:
+				log.Println("Unknown connection info")
 			}
-		case FLAG_CANDIDATE:
-			node.AddCandidate(v.Source+CP_TYPE_CLIENT, &webrtc.ICECandidateInit{Candidate: string(v.Candidate)}, v.ID)
-		case FLAG_ANWER:
-			log.Println("Bad connection info")
-		case FLAG_UNKNOWN:
-			log.Println("Unknown connection info")
+		case <-ctx.Done():
+			log.Println("Server canceled")
+			return
 		}
 	}
 }
 
 func (node *Node) Connect(ctx context.Context, sock net.Conn) {
-	key := os.Getenv("SSHX_KEY")
+	key := node.Configure.Key
 	if key == "" {
-		log.Println("SSHX_KEY (target id) is empty")
+		log.Println("target id is empty")
 		return
 	}
-	node.OpenConnections(key, CP_TYPE_SERVER, &sock)
-	info := node.Offer(key + CP_TYPE_SERVER)
+	conn := node.OpenConnections(&sock, CP_TYPE_SERVER, 0)
+	node.ConnectionPairs[conn.ID].PeerConnection.OnICECandidate(func(c *webrtc.ICECandidate) {
+		node.SignalCandidate(conn.ID, key+CP_TYPE_SERVER, c)
+	})
+	info := node.Offer(conn.ID)
 	node.push(*info, key+CP_TYPE_SERVER)
-	for v := range node.pull(ctx, node.ID+CP_TYPE_CLIENT) {
-		log.Printf("info: %#v", v)
-		switch v.Flag {
-		case FLAG_OFFER:
-			log.Println("Bad connection info")
-		case FLAG_CANDIDATE:
-			node.AddCandidate(v.Source+CP_TYPE_SERVER, &webrtc.ICECandidateInit{Candidate: string(v.Candidate)}, v.ID)
-		case FLAG_ANWER:
-			node.ConnectionPairs[key+CP_TYPE_SERVER].MakeConnection(v)
-			break
-		case FLAG_UNKNOWN:
-			log.Println("Unknown connection info")
+	log.Println("Push offer ", info.ID, info.Source)
+	sub, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func(subCtx context.Context) {
+		log.Println("New go runtinue")
+		ctxT, cancelT := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancelT()
+		for {
+			select {
+			case v := <-node.pull(ctx, node.ID+CP_TYPE_CLIENT):
+				switch v.Flag {
+				case FLAG_OFFER:
+					log.Println("Bad connection info", v.ID)
+				case FLAG_CANDIDATE:
+					log.Println("Candidate info", v.ID)
+					node.AddCandidate(&webrtc.ICECandidateInit{Candidate: string(v.Candidate)}, v.ID)
+				case FLAG_ANWER:
+					log.Println("Anwser info ", v.ID)
+					node.ConnectionPairs[v.ID].MakeConnection(v)
+				case FLAG_UNKNOWN:
+					log.Println("Unknown connection info", v.ID)
+				}
+			case <-subCtx.Done():
+				log.Println("Connected, loop exit!")
+				return
+			case <-ctx.Done():
+				log.Println("Canceled, loop exit 2!")
+				return
+			case <-ctxT.Done():
+				log.Println("Timeout, loop exit 3!")
+				//node.CloseConnections(v.ID)
+				return
+			}
 		}
-	}
+	}(sub)
+	// var n = 5
+	// for {
+	// 	node.AddCandidate(nil, id)
+	// 	time.Sleep(1 * time.Second)
+	// 	n--
+	// 	if n < 0 {
+	// 		return
+	// 	}
+	// }
+	<-conn.Exit
 }
 
 func (node *Node) push(info ConnectInfo, target string) error {

@@ -40,9 +40,10 @@ func pushData() http.Handler {
 			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 			return
 		}
-		log.Println("push from ", info.Source)
+		log.Println("push from ", info.Source, r.URL.Path)
+		mu.Lock()
+		defer mu.Unlock()
 		select {
-		default:
 		case res[r.URL.Path] <- info:
 		}
 	})
@@ -53,11 +54,12 @@ func pullData() http.Handler {
 
 		ch := res[r.URL.Path]
 		if ch == nil {
-			ch = make(chan node.ConnectInfo, 32)
+			mu.Lock()
+			ch = make(chan node.ConnectInfo, 64)
 			res[r.URL.Path] = ch
+			mu.Unlock()
 		}
 
-		log.Println("pull from ", r.URL.Path)
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
 		select {
@@ -65,6 +67,7 @@ func pullData() http.Handler {
 			http.Error(w, ``, http.StatusRequestTimeout)
 			return
 		case v := <-ch:
+			log.Println("pull from ", r.URL.Path, v.Source)
 			w.Header().Add("Content-Type", "application/json")
 			if err := json.NewEncoder(w).Encode(v); err != nil {
 				log.Print("json encode failed:", err)

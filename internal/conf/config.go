@@ -21,6 +21,11 @@ type Configure struct {
 	RTCConf             webrtc.Configuration
 }
 
+type ConfManager struct {
+	Conf  *Configure
+	Viper *viper.Viper
+}
+
 var defaultConfig = Configure{
 	LocalListenAddr:     "127.0.0.1:2222",
 	LocalSSHAddr:        "127.0.0.1:22",
@@ -43,33 +48,50 @@ var defaultConfig = Configure{
 	},
 }
 
-func NewConfigure(path string) *Configure {
+func NewConfManager(path string) *ConfManager {
 	var tmp Configure
-	viper.SetConfigName(".sshx_config")
-	viper.SetConfigType("json")
-	viper.AddConfigPath(path)
-	viper.WatchConfig()
-	viper.OnConfigChange(func(e fsnotify.Event) {
+	vp := viper.New()
+	vp.SetConfigName(".sshx_config")
+	vp.SetConfigType("json")
+	vp.AddConfigPath(path)
+	vp.WatchConfig()
+	vp.OnConfigChange(func(e fsnotify.Event) {
 		fmt.Println("Config file changed:", e.Name)
+		err := vp.Unmarshal(&tmp)
+		if err != nil {
+			panic(err)
+		}
 	})
-	err := viper.ReadInConfig() // Find and read the config file
+	err := vp.ReadInConfig() // Find and read the config file
 	if err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
 			// Config file not found; ignore error if desired
 			bs, _ := json.Marshal(defaultConfig)
 			viper.ReadConfig(bytes.NewBuffer(bs))
-			log.Println(err)
 			log.Print("Write config ...")
-			viper.SafeWriteConfig()
+			vp.WriteConfig()
 		} else {
 			panic(err)
 		}
 	}
 
-	err = viper.Unmarshal(&tmp)
+	err = vp.Unmarshal(&tmp)
 	if err != nil {
 		panic(err)
 	}
 	//log.Println(tmp)
-	return &tmp
+	return &ConfManager{
+		Conf:  &tmp,
+		Viper: vp,
+	}
+}
+
+func (cm *ConfManager) Set(key, value string) {
+	cm.Viper.Set(key, value)
+	log.Print("Write config ...")
+	err := cm.Viper.Unmarshal(cm.Conf)
+	if err != nil {
+		panic(err)
+	}
+	cm.Viper.WriteConfig()
 }
