@@ -74,7 +74,7 @@ func (node *Node) CloseConnections(key string) {
 	}
 }
 
-func (node *Node) OpenConnections(key string, cType string, sc *net.Conn) {
+func (node *Node) OpenConnections(key string, cType string, sc *net.Conn) chan int {
 	node.CloseConnections(key + cType)
 	node.connectionMux.Lock()
 	defer node.connectionMux.Unlock()
@@ -82,6 +82,7 @@ func (node *Node) OpenConnections(key string, cType string, sc *net.Conn) {
 	node.ConnectionPairs[key+cType].PeerConnection.OnICECandidate(func(c *webrtc.ICECandidate) {
 		node.SignalCandidate(key+cType, c)
 	})
+	return node.ConnectionPairs[key+cType].Exit
 }
 
 func (node *Node) SetConnectionPairID(key string, id int64) {
@@ -187,23 +188,35 @@ func (node *Node) Serve(ctx context.Context) {
 
 func (node *Node) Connect(ctx context.Context, sock net.Conn) {
 	key := node.Key
-	node.OpenConnections(key, CP_TYPE_SERVER, &sock)
+	ch := node.OpenConnections(key, CP_TYPE_SERVER, &sock)
 	info := node.Offer(key + CP_TYPE_SERVER)
 	node.push(*info, key+CP_TYPE_SERVER)
-	for v := range node.pull(ctx, node.ID+CP_TYPE_CLIENT) {
-		log.Printf("info: %#v", v)
-		switch v.Flag {
-		case FLAG_OFFER:
-			log.Println("Bad connection info")
-		case FLAG_CANDIDATE:
-			node.AddCandidate(v.Source+CP_TYPE_SERVER, &webrtc.ICECandidateInit{Candidate: string(v.Candidate)}, v.ID)
-		case FLAG_ANWER:
-			node.ConnectionPairs[key+CP_TYPE_SERVER].MakeConnection(v)
-			break
-		case FLAG_UNKNOWN:
-			log.Println("Unknown connection info")
+	ctxSub, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func(sub context.Context) {
+		for {
+			select {
+			case v := <-node.pull(ctx, node.ID+CP_TYPE_CLIENT):
+				switch v.Flag {
+				case FLAG_OFFER:
+					log.Println("Bad connection info")
+				case FLAG_CANDIDATE:
+					node.AddCandidate(v.Source+CP_TYPE_SERVER, &webrtc.ICECandidateInit{Candidate: string(v.Candidate)}, v.ID)
+				case FLAG_ANWER:
+					node.ConnectionPairs[key+CP_TYPE_SERVER].MakeConnection(v)
+					break
+				case FLAG_UNKNOWN:
+					log.Println("Unknown connection info")
+				}
+			case <-sub.Done():
+				log.Println("client loop exit 1")
+				return
+			}
 		}
-	}
+	}(ctxSub)
+	<-ch
+	close(ch)
+	log.Println("client loop exit 2")
 }
 
 func (node *Node) push(info ConnectInfo, target string) error {

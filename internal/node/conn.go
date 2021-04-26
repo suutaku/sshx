@@ -15,6 +15,7 @@ type ConnectionPair struct {
 	ID                 int64
 	Context            context.Context
 	Type               string
+	Exit               chan int
 }
 
 func NewConnectionPair(cnf webrtc.Configuration, sc *net.Conn, cType string) *ConnectionPair {
@@ -29,26 +30,28 @@ func NewConnectionPair(cnf webrtc.Configuration, sc *net.Conn, cType string) *Co
 		LocalSSHConnection: sc,
 		ID:                 time.Now().UnixNano(),
 		Type:               cType,
+		Exit:               make(chan int),
 	}
 
 	cp.PeerConnection.OnICEConnectionStateChange(func(state webrtc.ICEConnectionState) {
-		log.Print("pc ice state change:", state)
-		if state == webrtc.ICEConnectionStateDisconnected ||
-			state == webrtc.ICEConnectionStateFailed ||
-			state == webrtc.ICEConnectionStateClosed {
+		log.Print("pc ice state change: ", state.String())
+		if state.String() == webrtc.ICEConnectionStateDisconnected.String() ||
+			state.String() == webrtc.ICEConnectionStateFailed.String() ||
+			state.String() == webrtc.ICEConnectionStateClosed.String() {
 			cp.Close()
 		}
 	})
-	cp.PeerConnection.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
-		log.Print("pc connection state change:", state)
-		if state == webrtc.PeerConnectionStateFailed ||
-			state == webrtc.PeerConnectionStateDisconnected ||
-			state == webrtc.PeerConnectionStateClosed {
-			cp.Close()
-		}
-	})
+
 	if cType == "_server" {
-		log.Println("Create data channel")
+		cp.PeerConnection.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
+			log.Print("pc connection state change: ", state.String())
+			if state.String() == webrtc.PeerConnectionStateFailed.String() ||
+				state.String() == webrtc.PeerConnectionStateDisconnected.String() ||
+				state.String() == webrtc.PeerConnectionStateClosed.String() {
+				cp.Exit <- 0
+				cp.Close()
+			}
+		})
 		dc, err := cp.PeerConnection.CreateDataChannel("data", nil)
 		if err != nil {
 			log.Println("create dc failed:", err)
@@ -69,8 +72,17 @@ func NewConnectionPair(cnf webrtc.Configuration, sc *net.Conn, cType string) *Co
 		})
 		dc.OnClose(func() {
 			cp.Close()
+			log.Println("Data channel closed")
 		})
 	} else {
+		cp.PeerConnection.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
+			log.Print("pc connection state change: ", state.String())
+			if state.String() == webrtc.PeerConnectionStateFailed.String() ||
+				state.String() == webrtc.PeerConnectionStateDisconnected.String() ||
+				state.String() == webrtc.PeerConnectionStateClosed.String() {
+				cp.Close()
+			}
+		})
 		cp.PeerConnection.OnDataChannel(func(dc *webrtc.DataChannel) {
 			//dc.Lock()
 			dc.OnOpen(func() {
@@ -143,7 +155,6 @@ func (cp *ConnectionPair) Offer(id string) *ConnectInfo {
 		Source: id,
 		SDP:    offer.SDP,
 	}
-	log.Println(offer)
 	return &info
 }
 

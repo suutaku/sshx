@@ -41,7 +41,7 @@ func main() {
 		cm.Show()
 		return
 	}
-	if target != "-" {
+	if target != "" {
 		cm := conf.NewConfManager(path)
 		cm.Set("key", target)
 		return
