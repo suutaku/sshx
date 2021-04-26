@@ -48,7 +48,6 @@ func NewConnectionPair(cnf webrtc.Configuration, sc *net.Conn, cType string) *Co
 			if state.String() == webrtc.PeerConnectionStateFailed.String() ||
 				state.String() == webrtc.PeerConnectionStateDisconnected.String() ||
 				state.String() == webrtc.PeerConnectionStateClosed.String() {
-				cp.Exit <- 0
 				cp.Close()
 			}
 		})
@@ -58,6 +57,7 @@ func NewConnectionPair(cnf webrtc.Configuration, sc *net.Conn, cType string) *Co
 			cp.Close()
 		}
 		dc.OnOpen(func() {
+			cp.Exit <- 0 // exit client pull loop
 			log.Println("wrap to ssh dc")
 			io.Copy(&sendWrap{dc}, *(cp.LocalSSHConnection))
 			cp.Close()
