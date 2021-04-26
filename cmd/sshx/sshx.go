@@ -15,17 +15,19 @@ func main() {
 	var target string
 	var help bool
 	var deamon bool
+	var list bool
 	log.SetFlags(log.Lshortfile)
-	flag.StringVar(&target, "t", "-", "set/reset target id")
+	flag.StringVar(&target, "t", "", "set/reset target id")
 	flag.BoolVar(&help, "h", false, "help")
 	flag.BoolVar(&deamon, "d", false, "run sshx as a deamon")
+	flag.BoolVar(&list, "l", false, "show configure info")
 	flag.Usage = func() {
 		flag.Args()
 	}
 	flag.Parse()
 
 	if help {
-		flag.Usage()
+		flag.PrintDefaults()
 		return
 	}
 
@@ -34,9 +36,11 @@ func main() {
 	if home != "" {
 		path = home
 	}
-	log.Println("target")
-	log.Println(target)
-	log.Println(path)
+	if list {
+		cm := conf.NewConfManager(path)
+		cm.Show()
+		return
+	}
 	if target != "-" {
 		cm := conf.NewConfManager(path)
 		cm.Set("key", target)

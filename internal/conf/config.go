@@ -95,3 +95,8 @@ func (cm *ConfManager) Set(key, value string) {
 	}
 	cm.Viper.WriteConfig()
 }
+
+func (cm *ConfManager) Show() {
+	bs, _ := json.MarshalIndent(cm.Conf, "", "  ")
+	log.Println(string(bs))
+}
