@@ -67,7 +67,7 @@ func NewConfManager(path string) *ConfManager {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
 			// Config file not found; ignore error if desired
 			bs, _ := json.Marshal(defaultConfig)
-			viper.ReadConfig(bytes.NewBuffer(bs))
+			vp.ReadConfig(bytes.NewBuffer(bs))
 			log.Print("Write config ...")
 			vp.WriteConfig()
 		} else {
