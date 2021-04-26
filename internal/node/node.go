@@ -18,7 +18,14 @@ import (
 )
 
 var (
+	FLAG_UNKNOWN   = 0
 	FLAG_CANDIDATE = 1
+	FLAG_ANWER     = 2
+	FLAG_OFFER     = 3
+
+	//Connection pair types
+	CP_TYPE_CLIENT = "_client"
+	CP_TYPE_SERVER = "_server"
 )
 
 type ConnectInfo struct {
@@ -26,6 +33,7 @@ type ConnectInfo struct {
 	Source    string `json:"source"`
 	SDP       string `json:"sdp"`
 	Candidate []byte `json:"candidate"`
+	ID        int64  `json:"id"`
 }
 
 type sendWrap struct {
@@ -39,29 +47,80 @@ func (s *sendWrap) Write(b []byte) (int, error) {
 
 type Node struct {
 	*conf.Configure
-	*ConnectionManager
-	PeerConnections   map[string]*webrtc.PeerConnection
-	candidatesMux     sync.Mutex
-	pendingCandidates []*webrtc.ICECandidate
+	ConnectionPairs map[string]*ConnectionPair
+	connectionMux   sync.Mutex
+	PendingCadidate map[string][]*webrtc.ICECandidateInit
+	candidateMux    sync.Mutex
 }
 
 func NewNode(path string) *Node {
 	return &Node{
-		Configure:         conf.NewConfigure(path),
-		ConnectionManager: NewConnectionManager(),
-		pendingCandidates: make([]*webrtc.ICECandidate, 0),
-		PeerConnections:   make(map[string]*webrtc.PeerConnection),
+		Configure:       conf.NewConfigure(path),
+		ConnectionPairs: make(map[string]*ConnectionPair),
+		PendingCadidate: make(map[string][]*webrtc.ICECandidateInit),
 	}
 }
 
-func (node *Node) signalCandidate(addr string, c *webrtc.ICECandidate) {
-	log.Println("Push candidate!")
+func (node *Node) CloseConnections(key string) {
+	node.candidateMux.Lock()
+	delete(node.PendingCadidate, key)
+	node.candidateMux.Unlock()
+
+	node.connectionMux.Lock()
+	defer node.connectionMux.Unlock()
+	if node.ConnectionPairs[key] != nil {
+		node.ConnectionPairs[key].Close()
+		delete(node.ConnectionPairs, key)
+		log.Println("Node close connection pair of ", key)
+	}
+}
+
+func (node *Node) OpenConnections(key string, cType string, sc *net.Conn) {
+	node.CloseConnections(key + cType)
+	node.connectionMux.Lock()
+	defer node.connectionMux.Unlock()
+	node.ConnectionPairs[key+cType] = NewConnectionPair(node.RTCConf, sc, cType)
+	node.ConnectionPairs[key+cType].PeerConnection.OnICECandidate(func(c *webrtc.ICECandidate) {
+		node.SignalCandidate(key+cType, c)
+	})
+}
+
+func (node *Node) SetConnectionPairID(key string, id int64) {
+	if node.ConnectionPairs[key] != nil {
+		node.ConnectionPairs[key].ID = id
+	}
+}
+
+func (node *Node) AddCandidate(key string, ca *webrtc.ICECandidateInit, id int64) {
+	node.candidateMux.Lock()
+	if ca != nil {
+		node.PendingCadidate[key] = append(node.PendingCadidate[key], ca)
+	}
+	if node.ConnectionPairs[key] != nil && node.ConnectionPairs[key].IsRemoteDscripterSet() {
+		for _, v := range node.PendingCadidate[key] {
+			node.ConnectionPairs[key].AddCandidate(v, id)
+		}
+		delete(node.PendingCadidate, key)
+	}
+	node.candidateMux.Unlock()
+}
+
+func (node *Node) SignalCandidate(addr string, c *webrtc.ICECandidate) {
+	if c == nil {
+		return
+	}
+	if node.ConnectionPairs[addr] == nil {
+		return
+	}
 	info := ConnectInfo{
 		Flag:      FLAG_CANDIDATE,
 		Source:    node.ID,
 		Candidate: []byte(c.ToJSON().Candidate),
+		ID:        node.ConnectionPairs[addr].ID,
 	}
 	node.push(info, addr)
+	log.Println("Push candidate!")
+
 }
 
 func (node *Node) Start(ctx context.Context) {
@@ -69,7 +128,7 @@ func (node *Node) Start(ctx context.Context) {
 	// if node is a full node, listen as a "server"
 	if node.FullNode {
 		log.Println("start as a full node")
-		go node.serve(ctx)
+		go node.Serve(ctx)
 	}
 
 	// listen as a "client"
@@ -85,284 +144,70 @@ func (node *Node) Start(ctx context.Context) {
 				log.Println(err)
 				continue
 			}
-			go node.connect(ctx, sock)
+			go node.Connect(ctx, sock)
 		}
 	}()
 }
 
-func (node *Node) serve(ctx context.Context) {
-	log.Println("server started")
-	// pull with myself ID
-	for v := range node.pull(ctx, node.ID) {
+func (node *Node) Anwser(info ConnectInfo) *ConnectInfo {
+	ssh, err := net.Dial("tcp", node.LocalSSHAddr)
+	if err != nil {
+		log.Println("ssh dial filed:", err)
+		node.CloseConnections(info.Source + CP_TYPE_CLIENT)
+		return nil
+	}
+	node.OpenConnections(info.Source, CP_TYPE_CLIENT, &ssh)
+	node.SetConnectionPairID(info.Source+CP_TYPE_CLIENT, info.ID)
+	return node.ConnectionPairs[info.Source+CP_TYPE_CLIENT].Anwser(info, node.ID)
+}
+
+func (node *Node) Offer(key string) *ConnectInfo {
+	info := node.ConnectionPairs[key].Offer(node.ID)
+	info.ID = node.ConnectionPairs[key].ID
+	return info
+}
+
+func (node *Node) Serve(ctx context.Context) {
+	for v := range node.pull(ctx, node.ID+CP_TYPE_SERVER) {
 		log.Printf("info: %#v", v)
-		if v.Flag == FLAG_CANDIDATE && node.PeerConnections[v.Source] != nil {
-			if candidateErr := node.PeerConnections[v.Source].
-				AddICECandidate(webrtc.ICECandidateInit{Candidate: string(v.Candidate)}); candidateErr != nil {
-				log.Println(candidateErr)
+		switch v.Flag {
+		case FLAG_OFFER:
+			tmp := node.Anwser(v)
+			if tmp != nil {
+				node.push(*tmp, v.Source+CP_TYPE_CLIENT)
 			}
-			log.Println("Add candidate!!")
-			continue
+		case FLAG_CANDIDATE:
+			node.AddCandidate(v.Source+CP_TYPE_CLIENT, &webrtc.ICECandidateInit{Candidate: string(v.Candidate)}, v.ID)
+		case FLAG_ANWER:
+			log.Println("Bad connection info")
+		case FLAG_UNKNOWN:
+			log.Println("Unknown connection info")
 		}
-		pc, err := webrtc.NewPeerConnection(node.RTCConf)
-		if err != nil {
-			log.Println("rtc error:", err)
-			continue
-		}
-		node.PeerConnections[v.Source] = pc
-		pc.OnICECandidate(func(c *webrtc.ICECandidate) {
-			if c == nil {
-				return
-			}
-
-			node.candidatesMux.Lock()
-			defer node.candidatesMux.Unlock()
-
-			desc := pc.RemoteDescription()
-			if desc == nil {
-				node.pendingCandidates = append(node.pendingCandidates, c)
-			} else {
-				node.signalCandidate(v.Source, c)
-			}
-		})
-		ssh, err := net.Dial("tcp", node.LocalSSHAddr)
-		if err != nil {
-			log.Println("ssh dial filed:", err)
-			pc.Close()
-			delete(node.PeerConnections, v.Source)
-			continue
-		}
-		pc.OnICEConnectionStateChange(func(state webrtc.ICEConnectionState) {
-			log.Print("pc ice state change:", state)
-			if state == webrtc.ICEConnectionStateDisconnected ||
-				state == webrtc.ICEConnectionStateFailed ||
-				state == webrtc.ICEConnectionStateClosed {
-				pc.Close()
-				ssh.Close()
-				delete(node.PeerConnections, v.Source)
-			}
-		})
-		pc.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
-			log.Print("pc connection state change:", state)
-			if state == webrtc.PeerConnectionStateFailed ||
-				state == webrtc.PeerConnectionStateDisconnected ||
-				state == webrtc.PeerConnectionStateClosed {
-				pc.Close()
-				ssh.Close()
-				delete(node.PeerConnections, v.Source)
-			}
-		})
-
-		pc.OnDataChannel(func(dc *webrtc.DataChannel) {
-			//dc.Lock()
-			dc.OnOpen(func() {
-				log.Println("wrap to ssh dc")
-				io.Copy(&sendWrap{dc}, ssh)
-				pc.Close()
-				ssh.Close()
-				delete(node.PeerConnections, v.Source)
-			})
-			dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-				_, err := ssh.Write(msg.Data)
-				if err != nil {
-					log.Println("sock write failed:", err)
-					pc.Close()
-					delete(node.PeerConnections, v.Source)
-					return
-				}
-			})
-			dc.OnClose(func() {
-				pc.Close()
-				ssh.Close()
-				delete(node.PeerConnections, v.Source)
-			})
-			//dc.Unlock()
-		})
-		if err := pc.SetRemoteDescription(webrtc.SessionDescription{
-			Type: webrtc.SDPTypeOffer,
-			SDP:  v.SDP,
-		}); err != nil {
-			log.Println("rtc error:", err)
-			pc.Close()
-			ssh.Close()
-			delete(node.PeerConnections, v.Source)
-			continue
-		}
-		node.candidatesMux.Lock()
-		for _, c := range node.pendingCandidates {
-			node.signalCandidate(v.Source, c)
-		}
-		node.candidatesMux.Unlock()
-		answer, err := pc.CreateAnswer(nil)
-		if err != nil {
-			log.Println("rtc error:", err)
-			pc.Close()
-			ssh.Close()
-			delete(node.PeerConnections, v.Source)
-			continue
-		}
-
-		err = pc.SetLocalDescription(answer)
-		if err != nil {
-			ssh.Close()
-			continue
-		}
-
-		v.SDP = answer.SDP
-		target := v.Source
-		v.Source = node.ID
-		if err := node.push(v, target); err != nil {
-			log.Println("rtc error:", err)
-			pc.Close()
-			ssh.Close()
-			delete(node.PeerConnections, v.Source)
-			continue
-		}
-
 	}
 }
 
-func (node *Node) connect(ctx context.Context, sock net.Conn) {
+func (node *Node) Connect(ctx context.Context, sock net.Conn) {
 	key := os.Getenv("SSHX_KEY")
 	if key == "" {
 		log.Println("SSHX_KEY (target id) is empty")
-		sock.Close()
 		return
 	}
-	pc, err := webrtc.NewPeerConnection(node.RTCConf)
-	if err != nil {
-		log.Println("rtc error:", err)
-		return
-	}
-	node.PeerConnections[key] = pc
-	pc.OnICECandidate(func(c *webrtc.ICECandidate) {
-		if c == nil {
-			return
+	node.OpenConnections(key, CP_TYPE_SERVER, &sock)
+	info := node.Offer(key + CP_TYPE_SERVER)
+	node.push(*info, key+CP_TYPE_SERVER)
+	for v := range node.pull(ctx, node.ID+CP_TYPE_CLIENT) {
+		log.Printf("info: %#v", v)
+		switch v.Flag {
+		case FLAG_OFFER:
+			log.Println("Bad connection info")
+		case FLAG_CANDIDATE:
+			node.AddCandidate(v.Source+CP_TYPE_SERVER, &webrtc.ICECandidateInit{Candidate: string(v.Candidate)}, v.ID)
+		case FLAG_ANWER:
+			node.ConnectionPairs[key+CP_TYPE_SERVER].MakeConnection(v)
+			break
+		case FLAG_UNKNOWN:
+			log.Println("Unknown connection info")
 		}
-
-		node.candidatesMux.Lock()
-		defer node.candidatesMux.Unlock()
-
-		desc := pc.RemoteDescription()
-		if desc == nil {
-			node.pendingCandidates = append(node.pendingCandidates, c)
-		} else {
-			node.signalCandidate(key, c)
-		}
-	})
-	dc, err := pc.CreateDataChannel("data", nil)
-	if err != nil {
-		log.Println("create dc failed:", err)
-		pc.Close()
-		sock.Close()
-		delete(node.PeerConnections, key)
-		return
-	}
-	//dc.Lock()
-	dc.OnOpen(func() {
-		log.Println("wrap sock to dc")
-		io.Copy(&sendWrap{dc}, sock)
-		pc.Close()
-		sock.Close()
-		delete(node.PeerConnections, key)
-	})
-	dc.OnClose(func() {
-		pc.Close()
-		sock.Close()
-		delete(node.PeerConnections, key)
-	})
-	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-		_, err := sock.Write(msg.Data)
-		if err != nil {
-			log.Println("sock write failed:", err)
-			pc.Close()
-			sock.Close()
-			delete(node.PeerConnections, key)
-			return
-		}
-	})
-	pc.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
-		log.Print("pc connection state change:", state)
-		if state == webrtc.PeerConnectionStateDisconnected ||
-			state == webrtc.PeerConnectionStateFailed ||
-			state == webrtc.PeerConnectionStateClosed {
-			pc.Close()
-			sock.Close()
-			delete(node.PeerConnections, key)
-			log.Println("start cancel context !")
-		}
-	})
-	//dc.Unlock()
-	//log.Print("DataChannel:", dc)
-	ctx2, cancel2 := context.WithCancel(context.Background())
-	go func(ctx context.Context, cancel context.CancelFunc) {
-		pc.OnICEConnectionStateChange(func(state webrtc.ICEConnectionState) {
-			log.Print("pc ice state change:", state)
-			if state == webrtc.ICEConnectionStateDisconnected ||
-				state == webrtc.ICEConnectionStateFailed ||
-				state == webrtc.ICEConnectionStateClosed {
-				pc.Close()
-				sock.Close()
-				delete(node.PeerConnections, key)
-				log.Println("start cancel context !")
-				cancel()
-			}
-		})
-		//pull with myself ID
-		for v := range node.pull(ctx, node.ID) {
-			log.Printf("info: %#v", v)
-			if v.Flag == FLAG_CANDIDATE && node.PeerConnections[key] != nil {
-				if candidateErr := node.PeerConnections[key].
-					AddICECandidate(webrtc.ICECandidateInit{Candidate: string(v.Candidate)}); candidateErr != nil {
-					log.Println(candidateErr)
-				}
-				continue
-			} else {
-				if err := pc.SetRemoteDescription(webrtc.SessionDescription{
-					Type: webrtc.SDPTypeAnswer,
-					SDP:  v.SDP,
-				}); err != nil {
-					log.Println("rtc error:", err)
-					pc.Close()
-					sock.Close()
-					delete(node.PeerConnections, key)
-					return
-				}
-				node.candidatesMux.Lock()
-				for _, c := range node.pendingCandidates {
-					node.signalCandidate(key, c)
-				}
-				node.candidatesMux.Unlock()
-			}
-		}
-		defer func() {
-			log.Println("Cancel connection")
-			pc.Close()
-			sock.Close()
-			delete(node.PeerConnections, key)
-			return
-		}()
-
-	}(ctx2, cancel2)
-	offer, err := pc.CreateOffer(nil)
-	if err != nil {
-		log.Println("create offer error:", err)
-		pc.Close()
-		sock.Close()
-		delete(node.PeerConnections, key)
-		return
-	}
-	if err = pc.SetLocalDescription(offer); err != nil {
-		pc.Close()
-		sock.Close()
-		delete(node.PeerConnections, key)
-		return
-	}
-	if err := node.push(ConnectInfo{Source: node.ID, SDP: offer.SDP}, key); err != nil {
-		log.Println("push error:", err)
-		pc.Close()
-		sock.Close()
-		delete(node.PeerConnections, key)
-		return
 	}
 }
 
@@ -431,7 +276,7 @@ func (node *Node) pull(ctx context.Context, id string) <-chan ConnectInfo {
 			}
 			if len(info.Source) < 0 ||
 				(info.Flag != FLAG_CANDIDATE && len(info.SDP) < 0) {
-
+				log.Println("sdp is emtpy with flag 0")
 			} else {
 				ch <- info
 			}

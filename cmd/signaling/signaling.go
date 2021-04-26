@@ -33,14 +33,14 @@ func main() {
 
 func pushData() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
 		var info node.ConnectInfo
 		if err := json.NewDecoder(r.Body).Decode(&info); err != nil {
 			log.Print("json decode failed:", err)
 			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 			return
 		}
-		mu.RLock()
-		defer mu.RUnlock()
+		log.Println("push from ", info.Source)
 		select {
 		default:
 		case res[r.URL.Path] <- info:
@@ -50,13 +50,14 @@ func pushData() http.Handler {
 
 func pullData() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		mu.Lock()
+
 		ch := res[r.URL.Path]
 		if ch == nil {
-			ch = make(chan node.ConnectInfo)
+			ch = make(chan node.ConnectInfo, 32)
 			res[r.URL.Path] = ch
 		}
-		mu.Unlock()
+
+		log.Println("pull from ", r.URL.Path)
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
 		select {
