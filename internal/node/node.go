@@ -11,7 +11,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"os"
 	"path"
 	"sync"
 	"time"
@@ -53,9 +52,9 @@ type Node struct {
 	candidateMux    sync.Mutex
 }
 
-func NewNode(path string) *Node {
+func NewNode(cnf *conf.Configure) *Node {
 	return &Node{
-		Configure:       conf.NewConfigure(path),
+		Configure:       cnf,
 		ConnectionPairs: make(map[string]*ConnectionPair),
 		PendingCadidate: make(map[string][]*webrtc.ICECandidateInit),
 	}
@@ -187,11 +186,7 @@ func (node *Node) Serve(ctx context.Context) {
 }
 
 func (node *Node) Connect(ctx context.Context, sock net.Conn) {
-	key := os.Getenv("SSHX_KEY")
-	if key == "" {
-		log.Println("SSHX_KEY (target id) is empty")
-		return
-	}
+	key := node.Key
 	node.OpenConnections(key, CP_TYPE_SERVER, &sock)
 	info := node.Offer(key + CP_TYPE_SERVER)
 	node.push(*info, key+CP_TYPE_SERVER)
