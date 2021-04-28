@@ -1,5 +1,7 @@
 # SSHX
 
+[![Build Status](https://travis-ci.com/suutaku/sshx.svg?branch=master)](https://travis-ci.com/suutaku/sshx)
+
 ssh p2p tunneling service. An enhanced version of `https://github.com/nobonobo/ssh-p2p.git`.
 
 ## Connection sequence
