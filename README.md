@@ -17,7 +17,7 @@ sshd <--dial--- sshx server
 * RTCDataChannel/WebRTC: [https://github.com/pion/webrtc/v3](https://github.com/pion/webrtc/v3)
 * Signaling server: [http://peer1.cotnetwork.com:8990](http://peer1.cotnetwork.com:8990)
 
-Server is not stable, just for testing. **Please use your own signaling server in production**.
+Server is not stable, just for testing. **Please use your own signaling server on production**.
 
 ## Install
 
@@ -31,13 +31,13 @@ go get -u github.com/suutaku/sshx/cmd/signaling
 go get -u github.com/suutaku/sshx/cmd/sshx
 ```
 
-## Configure
+## Configuration
 Configure file will created at first time at path: `$HOME/.sshx_config.json`.
 Default configure as below:
 
 ```json
 {
-  "fullnode": false,
+  "fullnode": true,
   "id": "dd88229c-ad13-4210-a1ad-3d59f12e0655",
   "key": "75943077-3df7-4885-83f0-ef4361a4252f",
   "locallistenaddr": "127.0.0.1:2222",
@@ -61,26 +61,26 @@ Default configure as below:
 * `signalingserveraddr`: signaling server address.
 
 ## Usage
-### Signaling server
+* Signaling server
 Specify server listening port by environment variable **PORT**, default **8080**.
 
 ```bash
-export PORT=8990
+export SSHX_SIGNALING_PORT=[port you want] #default port is 8080
 signaling
 ```
 
-### SSHX
+* SSHX
 
-At **server** mode
+Start sshx:
 
 ```bash
-sshx
+sshx -d
 ```
-At **client** mode, specify target ID by **-t** option.
+Connect to target device with devie ID:
 
-```
-sshx -t [your target device id]
-ssh -p 2222 [user]@127.0.0.1
+```bash
+sshx -t [your target device id] # tell sshx deamon target id
+ssh -p 2222 [user]@127.0.0.1 # connect sshx deamon
 ```
 
 

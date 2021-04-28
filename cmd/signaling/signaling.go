@@ -21,7 +21,7 @@ func main() {
 	http.Handle("/pull/", http.StripPrefix("/pull/", pullData()))
 	http.Handle("/push/", http.StripPrefix("/push/", pushData()))
 
-	port := os.Getenv("PORT")
+	port := os.Getenv("SSHX_SIGNALING_PORT")
 	if port == "" {
 		port = "8080"
 		log.Printf("Defaulting to port %s", port)
