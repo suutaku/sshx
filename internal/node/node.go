@@ -196,7 +196,7 @@ func (node *Node) Connect(ctx context.Context, sock net.Conn) {
 	go func(sub context.Context) {
 		for {
 			select {
-			case v := <-node.pull(ctx, node.ID+CP_TYPE_CLIENT):
+			case v := <-node.pull(sub, node.ID+CP_TYPE_CLIENT):
 				switch v.Flag {
 				case FLAG_OFFER:
 					log.Println("Bad connection info")
