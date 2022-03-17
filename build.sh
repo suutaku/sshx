@@ -19,6 +19,12 @@ if [ "$1" = "install" ];then
   cp ./sshx.service /etc/systemd/system/
   systemctl enable sshx.service
   systemctl start sshx.service
+  if [ "$2" = "signaling" ];then
+    cp ./signaling /usr/local/bin/
+    cp ./signaling.service /etc/systemd/system/
+    systemctl enable signaling.service
+    systemctl start signaling.service
+  fi
 fi
 
 echo "Build successfully"

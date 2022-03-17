@@ -37,9 +37,7 @@ Default configure as below:
 
 ```json
 {
-  "fullnode": true,
   "id": "dd88229c-ad13-4210-a1ad-3d59f12e0655",
-  "key": "75943077-3df7-4885-83f0-ef4361a4252f",
   "locallistenaddr": "127.0.0.1:2222",
   "localsshaddr": "127.0.0.1:22",
   "rtcconf": {
@@ -54,7 +52,6 @@ Default configure as below:
   "signalingserveraddr": "http://peer1.cotnetwork.com:8990"
 }
 ```
-* `fullnode`: set to **false**, node will runing only as a **client**,set to **true**, node will runing as both **server** and **client**.
 * `locallistenaddr` : sshx listen address.
 * `localsshaddr`: server sshd  listen address.
 * `rtcconf`: STUN server configure.

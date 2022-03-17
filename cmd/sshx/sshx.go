@@ -29,17 +29,16 @@ func cmdConnect(cmd *cli.Cmd) {
 	cmd.Spec = "ADDR"
 	addr := cmd.StringArg("ADDR", "", "remote target address [username]@[host]:[port]")
 	cmd.Action = func() {
-		log.Println("connect to ", *addr)
 		if addr == nil && *addr == "" {
 			return
 		}
-		log.Println("tring to connect ", *addr)
 		cm := conf.NewConfManager(path)
 		dal = dailer.NewDailer(*cm.Conf)
 		defer dal.Close()
 		userName, address, port, err := tools.GetParam(*addr)
 		if err != nil {
 			log.Println(err)
+			return
 		}
 		err = dal.Connect(userName, address, port)
 		if err != nil {

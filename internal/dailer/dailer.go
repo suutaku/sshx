@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"syscall"
 	"time"
 
 	"github.com/suutaku/sshx/internal/conf"
@@ -39,7 +40,10 @@ func (dal *Dailer) Connect(user, host, port string) error {
 	var err error
 	var pass string
 	fmt.Print("Password: ")
-	fmt.Scanf("%s\n", &pass)
+	b, _ := terminal.ReadPassword(int(syscall.Stdin))
+	// fmt.Scanf("%s\n", &pass)
+	fmt.Print("\n")
+	pass = string(b)
 	sshConfig := &ssh.ClientConfig{
 		User:            user,
 		Auth:            []ssh.AuthMethod{ssh.Password(pass)},
@@ -49,11 +53,9 @@ func (dal *Dailer) Connect(user, host, port string) error {
 	switch tools.AddrType(host) {
 	case tools.ADDR_TYPE_ID:
 		// tcp dail, send key
-		log.Println("type id")
-		conn, err := net.DialTimeout("tcp", dal.conf.LocalListenAddr, 10*time.Second)
+		conn, err := net.DialTimeout("tcp", dal.conf.LocalListenAddr, time.Second)
 		if err != nil {
-			log.Println(err)
-			break
+			return err
 		}
 		req := proto.ConnectRequest{
 			Host: host,
@@ -63,12 +65,10 @@ func (dal *Dailer) Connect(user, host, port string) error {
 		conn.Read(b)
 		c, chans, reqs, err := ssh.NewClientConn(conn, "", sshConfig)
 		if err != nil {
-			log.Println(err)
-			break
+			return err
 		}
 		dal.client = ssh.NewClient(c, chans, reqs)
 	default:
-		log.Println("type domain or ip", host)
 		dal.client, err = ssh.Dial("tcp", host+":"+port, sshConfig)
 		if err != nil {
 			return err
@@ -77,7 +77,6 @@ func (dal *Dailer) Connect(user, host, port string) error {
 	if dal.client == nil {
 		return fmt.Errorf("connection faild")
 	}
-	log.Println("create session")
 	dal.session, err = dal.client.NewSession()
 	if err != nil {
 		dal.client.Close()

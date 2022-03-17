@@ -1,9 +1,9 @@
 [Unit]
-Description=SSHX is a remote ssh client with WebRTC
+Description=A real simple signaling server for sshx
 After=network.target auditd.service
 
 [Service]
-ExecStart=/usr/local/bin/sshx daemon
+ExecStart=/usr/local/bin/signaling
 KillMode=process
 Restart=on-failure
 RestartPreventExitStatus=255
@@ -11,4 +11,4 @@ Type=simple
 
 [Install]
 WantedBy=multi-user.target
-Alias=sshx.service
+Alias=signaling.service

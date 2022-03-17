@@ -16,10 +16,8 @@ import (
 )
 
 type Configure struct {
-	Key                 string
 	LocalSSHAddr        string
 	LocalListenAddr     string
-	FullNode            bool
 	ID                  string
 	SignalingServerAddr string
 	RTCConf             webrtc.Configuration
@@ -34,9 +32,7 @@ type ConfManager struct {
 var defaultConfig = Configure{
 	LocalListenAddr:     "127.0.0.1:2222",
 	LocalSSHAddr:        "127.0.0.1:22",
-	FullNode:            true,
 	ID:                  uuid.New().String(),
-	Key:                 uuid.New().String(),
 	SignalingServerAddr: "http://140.179.153.231:11095",
 	RTCConf: webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{
@@ -137,5 +133,6 @@ func (cm *ConfManager) Set(key, value string) {
 
 func (cm *ConfManager) Show() {
 	bs, _ := json.MarshalIndent(cm.Conf, "", "  ")
+	fmt.Println("read configure file at: ", cm.Path, "/.sshx_config.json")
 	log.Println(string(bs))
 }

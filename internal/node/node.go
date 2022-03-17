@@ -128,10 +128,7 @@ func (node *Node) SignalCandidate(addr string, c *webrtc.ICECandidate) {
 func (node *Node) Start(ctx context.Context) {
 
 	// if node is a full node, listen as a "server"
-	if node.FullNode {
-		log.Println("start as a full node")
-		go node.Serve(ctx)
-	}
+	go node.Serve(ctx)
 
 	// listen as a "client"
 	l, err := net.Listen("tcp", node.LocalListenAddr)
@@ -143,22 +140,31 @@ func (node *Node) Start(ctx context.Context) {
 		for {
 			sock, err := l.Accept()
 			if err != nil {
-				log.Println(err)
+				sock.Close()
 				continue
 			}
 			// read id and do connect
 			buf := make([]byte, 512)
 			n, err := sock.Read(buf)
-			sock.Write([]byte("ok"))
 			if err != nil {
 				log.Println(err)
-				return
+				sock.Close()
+				continue
+			}
+			log.Println("ping")
+			_, err = sock.Write([]byte("ok"))
+			log.Println("pong")
+			if err != nil {
+				log.Println(err)
+				sock.Close()
+				continue
 			} else {
 				req := proto.ConnectRequest{}
 				err = req.Unmarshal(buf[:n])
 				if err != nil {
 					log.Println(err, string(buf[:n]))
-					return
+					sock.Close()
+					continue
 				}
 				log.Println("new connection request: ", req.Host)
 				go node.Connect(ctx, sock, req.Host)
@@ -248,7 +254,10 @@ func (node *Node) push(info ConnectInfo, target string) error {
 		return err
 	}
 	log.Println("start push")
-	resp, err := http.Post(node.SignalingServerAddr+
+	client := http.Client{
+		Timeout: 30 * time.Second,
+	}
+	resp, err := client.Post(node.SignalingServerAddr+
 		path.Join("/", "push", target), "application/json", buf)
 	if err != nil {
 		return err
@@ -272,19 +281,12 @@ func (node *Node) pull(ctx context.Context, id string) <-chan ConnectInfo {
 		}
 		defer close(ch)
 		for {
-			req, err := http.NewRequest("GET", node.SignalingServerAddr+
-				path.Join("/", "pull", id), nil)
-			if err != nil {
-				if ctx.Err() == context.Canceled {
-
-					return
-				}
-				log.Println("get failed:", err)
-				faild()
-				continue
+			client := http.Client{
+				Timeout: 30 * time.Second,
 			}
-			req = req.WithContext(ctx)
-			res, err := http.DefaultClient.Do(req)
+			res, err := client.Get(node.SignalingServerAddr +
+				path.Join("/", "pull", id))
+
 			if err != nil {
 				if ctx.Err() == context.Canceled {
 
@@ -299,11 +301,9 @@ func (node *Node) pull(ctx context.Context, id string) <-chan ConnectInfo {
 			var info ConnectInfo
 			if err = json.NewDecoder(res.Body).Decode(&info); err != nil {
 				if err == io.EOF {
-
 					continue
 				}
 				if ctx.Err() == context.Canceled {
-
 					return
 				}
 				log.Println("get failed:", err)

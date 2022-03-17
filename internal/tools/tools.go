@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-var defaultPort = ":22"
+var defaultPort = "22"
 
 const (
 	ADDR_TYPE_IPV4 = iota
@@ -38,12 +38,12 @@ func GetParam(addrStr string) (userName, addr, port string, err error) {
 	}
 	userName = sps[0]
 	sps = strings.Split(sps[1], ":")
-	if len(sps) < 1 {
+	if len(sps) < 2 {
 		addr = sps[0]
 		port = defaultPort
 	} else {
 		addr = sps[0]
-		port = sps[0]
+		port = sps[1]
 	}
 
 	return
