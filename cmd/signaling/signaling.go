@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/suutaku/sshx/internal/node"
 	"log"
 	"net/http"
 	"os"
 	"sync"
 	"time"
+
+	"github.com/suutaku/sshx/internal/node"
 )
 
 var (
@@ -55,7 +56,7 @@ func pullData() http.Handler {
 		ch := res[r.URL.Path]
 		if ch == nil {
 			mu.Lock()
-			ch = make(chan node.ConnectInfo, 64)
+			ch = make(chan node.ConnectInfo)
 			res[r.URL.Path] = ch
 			mu.Unlock()
 		}

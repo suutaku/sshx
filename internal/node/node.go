@@ -5,8 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/pion/webrtc/v3"
-	"github.com/suutaku/sshx/internal/conf"
 	"io"
 	"log"
 	"net"
@@ -14,6 +12,10 @@ import (
 	"path"
 	"sync"
 	"time"
+
+	"github.com/pion/webrtc/v3"
+	"github.com/suutaku/sshx/internal/conf"
+	"github.com/suutaku/sshx/internal/proto"
 )
 
 var (
@@ -144,7 +146,23 @@ func (node *Node) Start(ctx context.Context) {
 				log.Println(err)
 				continue
 			}
-			go node.Connect(ctx, sock)
+			// read id and do connect
+			buf := make([]byte, 512)
+			n, err := sock.Read(buf)
+			sock.Write([]byte("ok"))
+			if err != nil {
+				log.Println(err)
+				return
+			} else {
+				req := proto.ConnectRequest{}
+				err = req.Unmarshal(buf[:n])
+				if err != nil {
+					log.Println(err, string(buf[:n]))
+					return
+				}
+				log.Println("new connection request: ", req.Host)
+				go node.Connect(ctx, sock, req.Host)
+			}
 		}
 	}()
 }
@@ -168,6 +186,7 @@ func (node *Node) Offer(key string) *ConnectInfo {
 }
 
 func (node *Node) Serve(ctx context.Context) {
+	log.Println("serve daemon")
 	for v := range node.pull(ctx, node.ID+CP_TYPE_SERVER) {
 		log.Printf("info: %#v", v)
 		switch v.Flag {
@@ -186,15 +205,18 @@ func (node *Node) Serve(ctx context.Context) {
 	}
 }
 
-func (node *Node) Connect(ctx context.Context, sock net.Conn) {
-	key := node.Key
+func (node *Node) Connect(ctx context.Context, sock net.Conn, targetKey string) {
+	key := targetKey
 	ch := node.OpenConnections(key, CP_TYPE_SERVER, &sock)
 	info := node.Offer(key + CP_TYPE_SERVER)
+	log.Println("start push")
 	node.push(*info, key+CP_TYPE_SERVER)
+	log.Println("push done")
 	ctxSub, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go func(sub context.Context) {
 		for {
+			log.Println("pull waiting")
 			select {
 			case v := <-node.pull(ctx, node.ID+CP_TYPE_CLIENT):
 				switch v.Flag {
@@ -202,9 +224,10 @@ func (node *Node) Connect(ctx context.Context, sock net.Conn) {
 					log.Println("Bad connection info")
 				case FLAG_CANDIDATE:
 					node.AddCandidate(v.Source+CP_TYPE_SERVER, &webrtc.ICECandidateInit{Candidate: string(v.Candidate)}, v.ID)
+					log.Println("add candidate")
 				case FLAG_ANWER:
 					node.ConnectionPairs[key+CP_TYPE_SERVER].MakeConnection(v)
-					break
+					log.Println("add anwser")
 				case FLAG_UNKNOWN:
 					log.Println("Unknown connection info")
 				}
@@ -224,6 +247,7 @@ func (node *Node) push(info ConnectInfo, target string) error {
 	if err := json.NewEncoder(buf).Encode(info); err != nil {
 		return err
 	}
+	log.Println("start push")
 	resp, err := http.Post(node.SignalingServerAddr+
 		path.Join("/", "push", target), "application/json", buf)
 	if err != nil {
@@ -252,6 +276,7 @@ func (node *Node) pull(ctx context.Context, id string) <-chan ConnectInfo {
 				path.Join("/", "pull", id), nil)
 			if err != nil {
 				if ctx.Err() == context.Canceled {
+
 					return
 				}
 				log.Println("get failed:", err)
@@ -262,6 +287,7 @@ func (node *Node) pull(ctx context.Context, id string) <-chan ConnectInfo {
 			res, err := http.DefaultClient.Do(req)
 			if err != nil {
 				if ctx.Err() == context.Canceled {
+
 					return
 				}
 				log.Println("get failed:", err)
@@ -271,19 +297,20 @@ func (node *Node) pull(ctx context.Context, id string) <-chan ConnectInfo {
 			defer res.Body.Close()
 			retry = time.Duration(0)
 			var info ConnectInfo
-			if err := json.NewDecoder(res.Body).Decode(&info); err != nil {
+			if err = json.NewDecoder(res.Body).Decode(&info); err != nil {
 				if err == io.EOF {
+
 					continue
 				}
 				if ctx.Err() == context.Canceled {
+
 					return
 				}
 				log.Println("get failed:", err)
 				faild()
 				continue
 			}
-			if len(info.Source) < 0 ||
-				(info.Flag != FLAG_CANDIDATE && len(info.SDP) < 0) {
+			if info.Flag != FLAG_CANDIDATE {
 				log.Println("sdp is emtpy with flag 0")
 			} else {
 				ch <- info

@@ -4,14 +4,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/fsnotify/fsnotify"
-	"github.com/google/uuid"
-	"github.com/pion/webrtc/v3"
-	"github.com/spf13/viper"
 	"io/ioutil"
 	"log"
 	"os"
 	"strings"
+
+	"github.com/fsnotify/fsnotify"
+	"github.com/google/uuid"
+	"github.com/pion/webrtc/v3"
+	"github.com/spf13/viper"
 )
 
 type Configure struct {
@@ -36,7 +37,7 @@ var defaultConfig = Configure{
 	FullNode:            true,
 	ID:                  uuid.New().String(),
 	Key:                 uuid.New().String(),
-	SignalingServerAddr: "http://peer1.cotnetwork.com:8990",
+	SignalingServerAddr: "http://140.179.153.231:11095",
 	RTCConf: webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{
 			{

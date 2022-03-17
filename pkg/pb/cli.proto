@@ -1,0 +1,15 @@
+syntax = "proto3";
+package proto;
+
+message ConnectRequest {
+  string Host = 1;
+}
+
+message ConnectResponse {
+  string Host = 1;
+}
+
+
+service Cli {
+  rpc Connect(ConnectRequest) returns (ConnectResponse);
+}

@@ -2,15 +2,16 @@ package node
 
 import (
 	"context"
-	"github.com/pion/webrtc/v3"
 	"io"
 	"log"
 	"net"
 	"time"
+
+	"github.com/pion/webrtc/v3"
 )
 
 type ConnectionPair struct {
-	PeerConnection     *webrtc.PeerConnection
+	*webrtc.PeerConnection
 	LocalSSHConnection *net.Conn
 	ID                 int64
 	Context            context.Context

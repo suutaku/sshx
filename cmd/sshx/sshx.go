@@ -2,44 +2,55 @@ package main
 
 import (
 	"context"
-	"flag"
-	"github.com/suutaku/sshx/internal/conf"
-	"github.com/suutaku/sshx/internal/node"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
+
+	cli "github.com/jawher/mow.cli"
+
+	"github.com/suutaku/sshx/internal/conf"
+	"github.com/suutaku/sshx/internal/dailer"
+	"github.com/suutaku/sshx/internal/node"
+	"github.com/suutaku/sshx/internal/tools"
 )
 
-func main() {
+var path = "."
+var dal *dailer.Dailer
 
-	var target string
-	var help bool
-	var deamon bool
-	var list bool
-	var create bool
-	log.SetFlags(log.Lshortfile)
-	flag.StringVar(&target, "t", "", "set/reset target id")
-	flag.BoolVar(&help, "h", false, "help")
-	flag.BoolVar(&deamon, "d", false, "run sshx as a deamon")
-	flag.BoolVar(&list, "l", false, "show configure info")
-	flag.BoolVar(&create, "c", false, "create a default configure file")
-	flag.Usage = func() {
-		flag.Args()
+func cmdList(cmd *cli.Cmd) {
+	cmd.Action = func() {
+		cm := conf.NewConfManager(path)
+		cm.Show()
 	}
-	flag.Parse()
+}
 
-	path := "."
-	home := os.Getenv("HOME")
-	if home != "" {
-		path = home
+func cmdConnect(cmd *cli.Cmd) {
+	cmd.Spec = "ADDR"
+	addr := cmd.StringArg("ADDR", "", "remote target address [username]@[host]:[port]")
+	cmd.Action = func() {
+		log.Println("connect to ", *addr)
+		if addr == nil && *addr == "" {
+			return
+		}
+		log.Println("tring to connect ", *addr)
+		cm := conf.NewConfManager(path)
+		dal = dailer.NewDailer(*cm.Conf)
+		defer dal.Close()
+		userName, address, port, err := tools.GetParam(*addr)
+		if err != nil {
+			log.Println(err)
+		}
+		err = dal.Connect(userName, address, port)
+		if err != nil {
+			panic(err)
+		}
 	}
+}
 
-	switch {
-	case help:
-		flag.PrintDefaults()
-		return
-	case deamon:
+func cmdDaemon(cmd *cli.Cmd) {
+	cmd.Action = func() {
+		log.Println("run as a daemon")
 		sig := make(chan os.Signal, 1)
 		signal.Notify(sig, syscall.SIGINT)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -48,20 +59,19 @@ func main() {
 		node.Start(ctx)
 		<-sig
 		cancel()
-	case list:
-		cm := conf.NewConfManager(path)
-		cm.Show()
-		return
-	case create:
-		cm := conf.NewConfManager(path)
-		cm.Show()
-		return
-	case target != "":
-		cm := conf.NewConfManager(path)
-		cm.Set("key", target)
-		return
-	default:
-		flag.PrintDefaults()
-		return
 	}
+}
+
+func main() {
+	log.SetFlags(log.Lshortfile)
+	home := os.Getenv("HOME")
+	if home != "" {
+		path = home
+	}
+	app := cli.App("sshx", "a webrtc based ssh remote tool")
+	app.Command("daemon", "launch a sshx daemon", cmdDaemon)
+	app.Command("list", "list configure informations", cmdList)
+	app.Command("connect", "connect to remove device", cmdConnect)
+	app.Run(os.Args)
+
 }
