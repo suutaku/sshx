@@ -2,6 +2,7 @@ package dailer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -30,24 +31,52 @@ func NewDailer(conf conf.Configure) *Dailer {
 	}
 }
 
-func (dal *Dailer) ConnectWithConn(con *net.Conn) {
-
+type x11request struct {
+	SingleConnection bool
+	AuthProtocol     string
+	AuthCookie       string
+	ScreenNumber     uint32
 }
 
-func (dal *Dailer) Connect(user, host, port string) error {
+type x11channel struct {
+	Host string
+	Port uint32
+}
+
+func (dal *Dailer) X11Request() {
+	// x11-req Payload
+	payload := x11request{
+		SingleConnection: false,
+		AuthProtocol:     string("MIT-MAGIC-COOKIE-1"),
+		AuthCookie:       string("d92c30482cc3d2de61888961deb74c08"),
+		ScreenNumber:     uint32(0),
+	}
+
+	// NOTE:
+	// send x11-req Request
+	ok, err := dal.session.SendRequest("x11-req", true, ssh.Marshal(payload))
+	if err == nil && !ok {
+		fmt.Println(errors.New("ssh: x11-req failed"))
+	}
+
+	// x11 OpenChannel (Not working...)
+	x11Data := x11channel{
+		Host: "localhost",
+		Port: uint32(6000),
+	}
+
+	dal.client.OpenChannel("x11", ssh.Marshal(x11Data))
+}
+
+func (dal *Dailer) Connect(host, port string, x11 bool, conf ssh.ClientConfig) error {
 
 	var err error
-	var pass string
-	fmt.Print("Password: ")
-	b, _ := terminal.ReadPassword(int(syscall.Stdin))
-	// fmt.Scanf("%s\n", &pass)
-	fmt.Print("\n")
-	pass = string(b)
-	sshConfig := &ssh.ClientConfig{
-		User:            user,
-		Auth:            []ssh.AuthMethod{ssh.Password(pass)},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		Timeout:         10 * time.Second,
+	if conf.Auth == nil || len(conf.Auth) == 0 {
+		fmt.Print("Password: ")
+		b, _ := terminal.ReadPassword(int(syscall.Stdin))
+		// fmt.Scanf("%s\n", &pass)
+		fmt.Print("\n")
+		conf.Auth = append(conf.Auth, ssh.Password(string(b)))
 	}
 
 	switch tools.AddrType(host) {
@@ -63,13 +92,13 @@ func (dal *Dailer) Connect(user, host, port string) error {
 		b, _ := req.Marshal()
 		conn.Write(b)
 		conn.Read(b)
-		c, chans, reqs, err := ssh.NewClientConn(conn, "", sshConfig)
+		c, chans, reqs, err := ssh.NewClientConn(conn, "", &conf)
 		if err != nil {
 			return err
 		}
 		dal.client = ssh.NewClient(c, chans, reqs)
 	default:
-		dal.client, err = ssh.Dial("tcp", host+":"+port, sshConfig)
+		dal.client, err = ssh.Dial("tcp", host+":"+port, &conf)
 		if err != nil {
 			return err
 		}
@@ -81,6 +110,9 @@ func (dal *Dailer) Connect(user, host, port string) error {
 	if err != nil {
 		dal.client.Close()
 		return err
+	}
+	if x11 {
+		dal.X11Request()
 	}
 
 	dal.fd = int(os.Stdin.Fd())

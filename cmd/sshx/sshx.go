@@ -2,12 +2,15 @@ package main
 
 import (
 	"context"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	cli "github.com/jawher/mow.cli"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/suutaku/sshx/internal/conf"
 	"github.com/suutaku/sshx/internal/dailer"
@@ -17,6 +20,14 @@ import (
 
 var path = "/etc/sshx"
 var dal *dailer.Dailer
+var sshConfig = ssh.ClientConfig{
+	// User:            user,
+	// Auth:            []ssh.AuthMethod{ssh.Password(pass)},
+	Auth:            []ssh.AuthMethod{},
+	HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	Timeout:         10 * time.Second,
+}
+var x11 = false
 
 func cmdList(cmd *cli.Cmd) {
 	cmd.Action = func() {
@@ -24,27 +35,56 @@ func cmdList(cmd *cli.Cmd) {
 		cm.Show()
 	}
 }
+func privateKeyOption(keyPath string) {
+	if keyPath == "" {
+		home := os.Getenv("HOME")
+		keyPath = home + "/.ssh/id_rsa"
+	}
+	pemBytes, err := ioutil.ReadFile(keyPath)
+	if err != nil {
+		log.Printf("Reading private key file failed %v", err)
+		os.Exit(0)
+	}
+	// create signer
+	signer, err := tools.SignerFromPem(pemBytes, nil)
+	if err != nil {
+		log.Println(err)
+		os.Exit(0)
+	}
+	sshConfig.Auth = append(sshConfig.Auth, ssh.PublicKeys(signer))
+}
 
 func cmdConnect(cmd *cli.Cmd) {
-	cmd.Spec = "ADDR"
+
+	cmd.Spec = "[ -X ] [ -i ] ADDR"
+	tmp := cmd.BoolOpt("X x11", false, "using X11 opton, default false")
+	ident := cmd.StringOpt("i identification", "", "a private path, default empty for ~/.ssh/id_rsa")
 	addr := cmd.StringArg("ADDR", "", "remote target address [username]@[host]:[port]")
 	cmd.Action = func() {
+		if tmp != nil && *tmp {
+			x11 = *tmp
+		}
+		if ident != nil {
+			privateKeyOption(*ident)
+		}
 		if addr == nil && *addr == "" {
-			return
+			os.Exit(0)
 		}
 		userName, address, port, err := tools.GetParam(*addr)
 		if err != nil {
 			log.Println(err)
-			return
+			os.Exit(0)
 		}
+		sshConfig.User = userName
 		cm := conf.NewConfManager(path)
 		dal = dailer.NewDailer(*cm.Conf)
-		defer dal.Close()
-		err = dal.Connect(userName, address, port)
+		err = dal.Connect(address, port, x11, sshConfig)
 		if err != nil {
 			log.Println(err)
-			return
+			dal.Close()
+			os.Exit(0)
 		}
+		dal.Close()
 	}
 }
 
