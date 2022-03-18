@@ -19,6 +19,7 @@ import (
 )
 
 var path = "/etc/sshx"
+var port = "22"
 var dal *dailer.Dailer
 var sshConfig = ssh.ClientConfig{
 	// User:            user,
@@ -56,9 +57,10 @@ func privateKeyOption(keyPath string) {
 
 func cmdConnect(cmd *cli.Cmd) {
 
-	cmd.Spec = "[ -X ] [ -i ] ADDR"
+	cmd.Spec = "[ -X ] [ -i ] [ -p ] ADDR"
 	tmp := cmd.BoolOpt("X x11", false, "using X11 opton, default false")
 	ident := cmd.StringOpt("i identification", "", "a private path, default empty for ~/.ssh/id_rsa")
+	portTmp := cmd.StringOpt("p", "22", "remote host port")
 	addr := cmd.StringArg("ADDR", "", "remote target address [username]@[host]:[port]")
 	cmd.Action = func() {
 		if tmp != nil && *tmp {
@@ -67,10 +69,13 @@ func cmdConnect(cmd *cli.Cmd) {
 		if ident != nil {
 			privateKeyOption(*ident)
 		}
+		if portTmp != nil {
+			port = *portTmp
+		}
 		if addr == nil && *addr == "" {
 			os.Exit(0)
 		}
-		userName, address, port, err := tools.GetParam(*addr)
+		userName, address, err := tools.GetParam(*addr)
 		if err != nil {
 			log.Println(err)
 			os.Exit(0)
@@ -78,11 +83,9 @@ func cmdConnect(cmd *cli.Cmd) {
 		sshConfig.User = userName
 		cm := conf.NewConfManager(path)
 		dal = dailer.NewDailer(*cm.Conf)
-		err = dal.Connect(address, port, x11, sshConfig)
+		err = dal.OpenTerminal(address, port, x11, sshConfig)
 		if err != nil {
 			log.Println(err)
-			dal.Close()
-			os.Exit(0)
 		}
 		dal.Close()
 	}
@@ -99,6 +102,42 @@ func cmdDaemon(cmd *cli.Cmd) {
 		node.Start(ctx)
 		<-sig
 		cancel()
+	}
+}
+
+func cmdCopy(cmd *cli.Cmd) {
+	cmd.Spec = "[ -i ] [ -p ] FROM TO"
+	ident := cmd.StringOpt("i identification", "", "a private path, default empty for ~/.ssh/id_rsa")
+	portTmp := cmd.StringOpt("p", "22", "remote host port")
+	fromPath := cmd.StringArg("FROM", "", "file path which want to coy")
+	toPath := cmd.StringArg("TO", "", "des path ")
+	cmd.Action = func() {
+		if fromPath == nil || *fromPath == "" {
+			os.Exit(1)
+		}
+		if toPath == nil || *toPath == "" {
+			os.Exit(1)
+		}
+
+		userName, host, localPath, remotePath, upload, err := tools.ParseCopyParam(*fromPath, *toPath)
+		if err != nil {
+			log.Println(err)
+			os.Exit(0)
+		}
+		sshConfig.User = userName
+		if ident != nil {
+			privateKeyOption(*ident)
+		}
+		if portTmp != nil {
+			port = *portTmp
+		}
+		cm := conf.NewConfManager(path)
+		dal = dailer.NewDailer(*cm.Conf)
+		err = dal.Copy(localPath, remotePath, host, port, upload, sshConfig)
+		if err != nil {
+			log.Println(err)
+		}
+		dal.Close()
 	}
 }
 
@@ -119,7 +158,8 @@ func main() {
 	app := cli.App("sshx", "a webrtc based ssh remote tool")
 	app.Command("daemon", "launch a sshx daemon", cmdDaemon)
 	app.Command("list", "list configure informations", cmdList)
-	app.Command("connect", "connect to remove device", cmdConnect)
+	app.Command("connect", "connect to remote host", cmdConnect)
+	app.Command("copy", "cpy files or directories to remote host", cmdCopy)
 	app.Run(os.Args)
 
 }

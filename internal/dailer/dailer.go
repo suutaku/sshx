@@ -2,12 +2,11 @@ package dailer
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io"
+	"log"
 	"net"
 	"os"
-	"sync"
+	"strings"
 	"syscall"
 	"time"
 
@@ -30,99 +29,22 @@ type Dailer struct {
 func NewDailer(conf conf.Configure) *Dailer {
 	return &Dailer{
 		conf: conf,
+		ctx:  context.Background(),
 	}
 }
-
-type x11request struct {
-	SingleConnection bool
-	AuthProtocol     string
-	AuthCookie       string
-	ScreenNumber     uint32
+func (dal *Dailer) RequstPassword(conf *ssh.ClientConfig) {
+	fmt.Print("Password: ")
+	b, _ := terminal.ReadPassword(int(syscall.Stdin))
+	// fmt.Scanf("%s\n", &pass)
+	fmt.Print("\n")
+	conf.Auth = append(conf.Auth, ssh.Password(string(b)))
 }
 
-type x11channel struct {
-	Host string
-	Port uint32
-}
-
-func (dal *Dailer) X11Request() {
-	// x11-req Payload
-	payload := x11request{
-		SingleConnection: false,
-		AuthProtocol:     string("MIT-MAGIC-COOKIE-1"),
-		AuthCookie:       string("d92c30482cc3d2de61888961deb74c08"),
-		ScreenNumber:     uint32(0),
-	}
-
-	// NOTE:
-	// send x11-req Request
-	ok, err := dal.session.SendRequest("x11-req", true, ssh.Marshal(payload))
-	if err == nil && !ok {
-		fmt.Println(errors.New("ssh: x11-req failed"))
-		return
-	}
-	x11channels := dal.client.HandleChannelOpen("x11")
-
-	go func() {
-		for ch := range x11channels {
-			channel, _, err := ch.Accept()
-			if err != nil {
-				continue
-			}
-
-			go dal.forwardX11Socket(channel)
-		}
-	}()
-}
-
-func (dal *Dailer) Connect(host, port string, x11 bool, conf ssh.ClientConfig) error {
-
-	var err error
-	if conf.Auth == nil || len(conf.Auth) == 0 {
-		fmt.Print("Password: ")
-		b, _ := terminal.ReadPassword(int(syscall.Stdin))
-		// fmt.Scanf("%s\n", &pass)
-		fmt.Print("\n")
-		conf.Auth = append(conf.Auth, ssh.Password(string(b)))
-	}
-
-	switch tools.AddrType(host) {
-	case tools.ADDR_TYPE_ID:
-		// tcp dail, send key
-		conn, err := net.DialTimeout("tcp", dal.conf.LocalListenAddr, time.Second)
-		if err != nil {
-
-			return err
-		}
-		req := proto.ConnectRequest{
-			Host: host,
-		}
-		b, _ := req.Marshal()
-		conn.Write(b)
-		conn.Read(b)
-		c, chans, reqs, err := ssh.NewClientConn(conn, "", &conf)
-		if err != nil {
-			return err
-		}
-		dal.client = ssh.NewClient(c, chans, reqs)
-	default:
-		dal.client, err = ssh.Dial("tcp", host+":"+port, &conf)
-		if err != nil {
-			return err
-		}
-	}
-	if dal.client == nil {
-		return fmt.Errorf("connection faild")
-	}
-	dal.session, err = dal.client.NewSession()
+func (dal *Dailer) OpenTerminal(host, port string, x11 bool, conf ssh.ClientConfig) error {
+	err := dal.Connect(host, port, x11, conf)
 	if err != nil {
-		dal.client.Close()
 		return err
 	}
-	if x11 {
-		dal.X11Request()
-	}
-
 	dal.fd = int(os.Stdin.Fd())
 
 	dal.state, err = terminal.MakeRaw(dal.fd)
@@ -167,30 +89,76 @@ func (dal *Dailer) Connect(host, port string, x11 bool, conf ssh.ClientConfig) e
 	return nil
 }
 
-func (dal *Dailer) Close() {
-	terminal.Restore(dal.fd, dal.state)
-}
+func (dal *Dailer) Connect(host, port string, x11 bool, conf ssh.ClientConfig) error {
 
-func (dal *Dailer) forwardX11Socket(channel ssh.Channel) {
-	conn, err := net.Dial("unix", os.Getenv("DISPLAY"))
-	if err != nil {
-		return
+	var err error
+	if conf.Auth == nil || len(conf.Auth) == 0 {
+		log.Panicln("auth not set")
+		dal.RequstPassword(&conf)
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		io.Copy(conn, channel)
-		conn.(*net.UnixConn).CloseWrite()
-		wg.Done()
-	}()
-	go func() {
-		io.Copy(channel, conn)
-		channel.CloseWrite()
-		wg.Done()
-	}()
+	switch tools.AddrType(host) {
+	case tools.ADDR_TYPE_ID:
+		// tcp dail, send key
+		conn, err := net.DialTimeout("tcp", dal.conf.LocalListenAddr, time.Second)
+		if err != nil {
+			return err
+		}
+		req := proto.ConnectRequest{
+			Host: host,
+		}
+		b, _ := req.Marshal()
+		conn.Write(b)
+		conn.Read(b)
+		c, chans, reqs, err := ssh.NewClientConn(conn, "", &conf)
+		if err != nil {
+			if strings.Contains(err.Error(), "ssh: handshake failed: ssh: unable to authenticate") {
+				log.Println(err)
+				dal.RequstPassword(&conf)
+				c, chans, reqs, err = ssh.NewClientConn(conn, "", &conf)
+				if err != nil {
+					return err
+				}
+			} else {
+				return err
+			}
+		}
+		dal.client = ssh.NewClient(c, chans, reqs)
+	default:
+		dal.client, err = ssh.Dial("tcp", host+":"+port, &conf)
+		if err != nil {
+			if strings.Contains(err.Error(), "ssh: handshake failed: ssh: unable to authenticate") {
+				log.Println(err)
+				dal.RequstPassword(&conf)
+				dal.client, err = ssh.Dial("tcp", host+":"+port, &conf)
+				if err != nil {
+					return err
+				}
+			} else {
+				return err
+			}
+		}
+	}
+	if dal.client == nil {
+		return fmt.Errorf("connection faild")
+	}
+	dal.session, err = dal.client.NewSession()
+	if err != nil {
+		dal.client.Close()
+		return err
+	}
+	if x11 {
+		dal.X11Request()
+	}
 
-	wg.Wait()
-	conn.Close()
-	channel.Close()
+	return nil
+}
+
+func (dal *Dailer) Close() {
+	if dal.state != nil {
+		terminal.Restore(dal.fd, dal.state)
+	}
+	dal.session.Close()
+	dal.client.Close()
+
 }

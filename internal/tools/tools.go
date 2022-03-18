@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"math/rand"
 	"net"
 	"os/user"
 	"strings"
@@ -36,7 +35,43 @@ func AddrType(addrStr string) int {
 
 }
 
-func GetParam(addrStr string) (userName, addr, port string, err error) {
+func splitAddr(addr string) (host, path string) {
+	sps := strings.Split(addr, ":")
+	if len(sps) < 2 {
+		path = sps[0]
+	} else {
+		host = sps[0]
+		path = sps[1]
+	}
+	return
+}
+
+func ParseCopyParam(from, to string) (userName, host string, localPath string, remotePath string, upload bool, err error) {
+
+	fromHost, fromPath := splitAddr(from)
+	toHost, toPath := splitAddr(to)
+
+	if fromHost != "" && toHost != "" {
+		err = fmt.Errorf("both was remote hoost?")
+	}
+	if fromHost != "" {
+		userName, host, err = GetParam(fromHost)
+		upload = false
+		remotePath = fromPath
+		localPath = toPath
+	}
+
+	if toHost != "" {
+		userName, host, err = GetParam(toHost)
+		upload = true
+		remotePath = toPath
+		localPath = fromPath
+	}
+
+	return
+}
+
+func GetParam(addrStr string) (userName, addr string, err error) {
 	sps := strings.Split(addrStr, "@")
 	if len(sps) < 2 {
 		user, err := user.Current()
@@ -44,25 +79,12 @@ func GetParam(addrStr string) (userName, addr, port string, err error) {
 			log.Fatalf(err.Error())
 		}
 		userName = user.Username
+		addr = sps[0]
 	} else {
 		userName = sps[0]
-		sps[0] = sps[1]
+		addr = sps[1]
 	}
-
-	sps = strings.Split(sps[0], ":")
-	if len(sps) < 2 {
-		addr = sps[0]
-		port = defaultPort
-	} else {
-		addr = sps[0]
-		port = sps[1]
-	}
-
 	return
-}
-
-func CreateTmpListenAddress() string {
-	return fmt.Sprintf("127.0.0.1:%d", rand.Intn(1000)+10000)
 }
 
 func SignerFromPem(pemBytes []byte, password []byte) (ssh.Signer, error) {
