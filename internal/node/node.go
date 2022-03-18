@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"path"
 	"sync"
 	"time"
@@ -133,7 +134,8 @@ func (node *Node) Start(ctx context.Context) {
 	// listen as a "client"
 	l, err := net.Listen("tcp", node.LocalListenAddr)
 	if err != nil {
-		log.Fatalln(err)
+		fmt.Println(err)
+		os.Exit(1)
 	}
 	log.Println("listen:", node.LocalListenAddr)
 	go func() {
@@ -151,9 +153,7 @@ func (node *Node) Start(ctx context.Context) {
 				sock.Close()
 				continue
 			}
-			log.Println("ping")
 			_, err = sock.Write([]byte("ok"))
-			log.Println("pong")
 			if err != nil {
 				log.Println(err)
 				sock.Close()
@@ -215,9 +215,11 @@ func (node *Node) Connect(ctx context.Context, sock net.Conn, targetKey string) 
 	key := targetKey
 	ch := node.OpenConnections(key, CP_TYPE_SERVER, &sock)
 	info := node.Offer(key + CP_TYPE_SERVER)
-	log.Println("start push")
-	node.push(*info, key+CP_TYPE_SERVER)
-	log.Println("push done")
+	err := node.push(*info, key+CP_TYPE_SERVER)
+	if err != nil {
+		log.Println(err)
+		os.Exit(1)
+	}
 	ctxSub, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go func(sub context.Context) {
@@ -253,9 +255,8 @@ func (node *Node) push(info ConnectInfo, target string) error {
 	if err := json.NewEncoder(buf).Encode(info); err != nil {
 		return err
 	}
-	log.Println("start push")
 	client := http.Client{
-		Timeout: 30 * time.Second,
+		Timeout: time.Second,
 	}
 	resp, err := client.Post(node.SignalingServerAddr+
 		path.Join("/", "push", target), "application/json", buf)
@@ -278,6 +279,7 @@ func (node *Node) pull(ctx context.Context, id string) <-chan ConnectInfo {
 				retry++
 			}
 			time.Sleep(retry * time.Second)
+			log.Println("retry")
 		}
 		defer close(ch)
 		for {
@@ -310,11 +312,7 @@ func (node *Node) pull(ctx context.Context, id string) <-chan ConnectInfo {
 				faild()
 				continue
 			}
-			if info.Flag != FLAG_CANDIDATE {
-				log.Println("sdp is emtpy with flag 0")
-			} else {
-				ch <- info
-			}
+			ch <- info
 		}
 	}()
 	return ch

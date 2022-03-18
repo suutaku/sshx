@@ -1,10 +1,11 @@
 package tools
 
 import (
-	"errors"
 	"fmt"
+	"log"
 	"math/rand"
 	"net"
+	"os/user"
 	"strings"
 )
 
@@ -33,11 +34,17 @@ func AddrType(addrStr string) int {
 func GetParam(addrStr string) (userName, addr, port string, err error) {
 	sps := strings.Split(addrStr, "@")
 	if len(sps) < 2 {
-		err = errors.New("bad address format " + addrStr)
-		return
+		user, err := user.Current()
+		if err != nil {
+			log.Fatalf(err.Error())
+		}
+		userName = user.Username
+	} else {
+		userName = sps[0]
+		sps[0] = sps[1]
 	}
-	userName = sps[0]
-	sps = strings.Split(sps[1], ":")
+
+	sps = strings.Split(sps[0], ":")
 	if len(sps) < 2 {
 		addr = sps[0]
 		port = defaultPort

@@ -34,7 +34,6 @@ func main() {
 
 func pushData() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Println("push callback")
 		var info node.ConnectInfo
 		if err := json.NewDecoder(r.Body).Decode(&info); err != nil {
 			log.Print("json decode failed:", err)
@@ -55,22 +54,19 @@ func pushData() http.Handler {
 
 func pullData() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Println("pull callback")
 		mu.Lock()
-		log.Println("pull lock")
 		if res[r.URL.Path] == nil {
 			log.Println("crete resource for ", r.URL.Path, " 2")
 			res[r.URL.Path] = make(chan node.ConnectInfo, 64)
 		}
 		mu.Unlock()
-		log.Println("pull unlock")
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
 		select {
 		case <-ctx.Done():
 			return
 		case v := <-res[r.URL.Path]:
-			log.Println("pull from ", r.URL.Path, v.Source)
+			log.Println("pull from ", v.Source, r.URL.Path)
 			w.Header().Add("Content-Type", "application/json")
 			if err := json.NewEncoder(w).Encode(v); err != nil {
 				log.Print("json encode failed:", err)

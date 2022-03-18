@@ -3,7 +3,6 @@ package dailer
 import (
 	"context"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"syscall"
@@ -48,6 +47,7 @@ func (dal *Dailer) Connect(user, host, port string) error {
 		User:            user,
 		Auth:            []ssh.AuthMethod{ssh.Password(pass)},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         10 * time.Second,
 	}
 
 	switch tools.AddrType(host) {
@@ -129,5 +129,4 @@ func (dal *Dailer) Connect(user, host, port string) error {
 
 func (dal *Dailer) Close() {
 	terminal.Restore(dal.fd, dal.state)
-	log.Println("close dal")
 }

@@ -86,7 +86,8 @@ func NewConfManager(path string) *ConfManager {
 		fmt.Println("Config file changed:", e.Name)
 		err := vp.Unmarshal(&tmp)
 		if err != nil {
-			panic(err)
+			log.Println(err)
+			os.Exit(1)
 		}
 		clearKnownHosts(tmp.LocalListenAddr)
 	})
@@ -99,16 +100,19 @@ func NewConfManager(path string) *ConfManager {
 			log.Print("Write config ...\n", string(bs))
 			err = vp.WriteConfigAs(path + "/.sshx_config.json")
 			if err != nil {
-				panic(err)
+				log.Println(err)
+				os.Exit(1)
 			}
 		} else {
-			panic(err)
+			log.Println(err)
+			os.Exit(1)
 		}
 	}
 
 	err = vp.Unmarshal(&tmp)
 	if err != nil {
-		panic(err)
+		log.Println(err)
+		os.Exit(1)
 	}
 	//log.Println(tmp)
 	clearKnownHosts(tmp.LocalListenAddr)
@@ -125,7 +129,8 @@ func (cm *ConfManager) Set(key, value string) {
 	log.Print("Write config ...")
 	err := cm.Viper.Unmarshal(cm.Conf)
 	if err != nil {
-		panic(err)
+		log.Println(err)
+		os.Exit(1)
 	}
 	cm.Viper.WriteConfigAs(cm.Path + "/.sshx_config.json")
 
