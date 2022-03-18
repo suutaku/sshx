@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
+	"sync"
 	"syscall"
 	"time"
 
@@ -57,15 +59,20 @@ func (dal *Dailer) X11Request() {
 	ok, err := dal.session.SendRequest("x11-req", true, ssh.Marshal(payload))
 	if err == nil && !ok {
 		fmt.Println(errors.New("ssh: x11-req failed"))
+		return
 	}
+	x11channels := dal.client.HandleChannelOpen("x11")
 
-	// x11 OpenChannel (Not working...)
-	x11Data := x11channel{
-		Host: "localhost",
-		Port: uint32(6000),
-	}
+	go func() {
+		for ch := range x11channels {
+			channel, _, err := ch.Accept()
+			if err != nil {
+				continue
+			}
 
-	dal.client.OpenChannel("x11", ssh.Marshal(x11Data))
+			go dal.forwardX11Socket(channel)
+		}
+	}()
 }
 
 func (dal *Dailer) Connect(host, port string, x11 bool, conf ssh.ClientConfig) error {
@@ -84,6 +91,7 @@ func (dal *Dailer) Connect(host, port string, x11 bool, conf ssh.ClientConfig) e
 		// tcp dail, send key
 		conn, err := net.DialTimeout("tcp", dal.conf.LocalListenAddr, time.Second)
 		if err != nil {
+
 			return err
 		}
 		req := proto.ConnectRequest{
@@ -161,4 +169,28 @@ func (dal *Dailer) Connect(host, port string, x11 bool, conf ssh.ClientConfig) e
 
 func (dal *Dailer) Close() {
 	terminal.Restore(dal.fd, dal.state)
+}
+
+func (dal *Dailer) forwardX11Socket(channel ssh.Channel) {
+	conn, err := net.Dial("unix", os.Getenv("DISPLAY"))
+	if err != nil {
+		return
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		io.Copy(conn, channel)
+		conn.(*net.UnixConn).CloseWrite()
+		wg.Done()
+	}()
+	go func() {
+		io.Copy(channel, conn)
+		channel.CloseWrite()
+		wg.Done()
+	}()
+
+	wg.Wait()
+	conn.Close()
+	channel.Close()
 }
