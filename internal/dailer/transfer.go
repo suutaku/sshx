@@ -7,6 +7,8 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"path"
+	"path/filepath"
 
 	scp "github.com/bramvdbogaerde/go-scp"
 	"golang.org/x/crypto/ssh"
@@ -29,9 +31,9 @@ func (dal *Dailer) Transfer(filePath, remotePath string, upload bool, scpClient 
 	}
 	defer file.Close()
 	if upload {
-		return scpClient.CopyFromFile(context.Background(), *file, remotePath, fmt.Sprintf("%04o", mode.Perm()))
+		return scpClient.CopyFromFile(context.Background(), *file, filepath.Join(remotePath, path.Base(file.Name())), fmt.Sprintf("%04o", mode.Perm()))
 	}
-	return scpClient.CopyFromRemote(context.Background(), file, remotePath)
+	return scpClient.CopyFromRemote(context.Background(), file, filepath.Join(remotePath, path.Base(file.Name())))
 }
 
 func (dal *Dailer) Copy(localPath, remotePath, host, port string, upload bool, conf ssh.ClientConfig) error {

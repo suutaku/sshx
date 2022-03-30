@@ -78,14 +78,14 @@ func (node *Node) CloseConnections(key string) {
 }
 
 func (node *Node) OpenConnections(key string, cType string, sc *net.Conn) chan int {
-	node.CloseConnections(key + cType)
+	// node.CloseConnections(key + cType)
 	node.connectionMux.Lock()
 	defer node.connectionMux.Unlock()
-	node.ConnectionPairs[key+cType] = NewConnectionPair(node.RTCConf, sc, cType)
-	node.ConnectionPairs[key+cType].PeerConnection.OnICECandidate(func(c *webrtc.ICECandidate) {
-		node.SignalCandidate(key+cType, c)
+	node.ConnectionPairs[key] = NewConnectionPair(node.RTCConf, sc, cType)
+	node.ConnectionPairs[key].PeerConnection.OnICECandidate(func(c *webrtc.ICECandidate) {
+		node.SignalCandidate(key, c)
 	})
-	return node.ConnectionPairs[key+cType].Exit
+	return node.ConnectionPairs[key].Exit
 }
 
 func (node *Node) SetConnectionPairID(key string, id int64) {
@@ -122,7 +122,7 @@ func (node *Node) SignalCandidate(addr string, c *webrtc.ICECandidate) {
 		ID:        node.ConnectionPairs[addr].ID,
 	}
 	node.push(info, addr)
-	log.Println("Push candidate!")
+	log.Println("Push candidate to ", addr, "!")
 
 }
 
@@ -177,12 +177,12 @@ func (node *Node) Anwser(info ConnectInfo) *ConnectInfo {
 	ssh, err := net.Dial("tcp", node.LocalSSHAddr)
 	if err != nil {
 		log.Println("ssh dial filed:", err)
-		node.CloseConnections(info.Source + CP_TYPE_CLIENT)
+		node.CloseConnections(info.Source)
 		return nil
 	}
 	node.OpenConnections(info.Source, CP_TYPE_CLIENT, &ssh)
-	node.SetConnectionPairID(info.Source+CP_TYPE_CLIENT, info.ID)
-	return node.ConnectionPairs[info.Source+CP_TYPE_CLIENT].Anwser(info, node.ID)
+	node.SetConnectionPairID(info.Source, info.ID)
+	return node.ConnectionPairs[info.Source].Anwser(info, node.ID)
 }
 
 func (node *Node) Offer(key string) *ConnectInfo {
@@ -193,20 +193,30 @@ func (node *Node) Offer(key string) *ConnectInfo {
 
 func (node *Node) Serve(ctx context.Context) {
 	log.Println("serve daemon")
-	for v := range node.pull(ctx, node.ID+CP_TYPE_SERVER) {
-		log.Printf("info: %#v", v)
-		switch v.Flag {
-		case FLAG_OFFER:
-			tmp := node.Anwser(v)
-			if tmp != nil {
-				node.push(*tmp, v.Source+CP_TYPE_CLIENT)
+	for {
+		select {
+		case v := <-node.pull(ctx):
+			log.Printf("info: %#v", v)
+			switch v.Flag {
+			case FLAG_OFFER:
+				log.Println("got a offer")
+				tmp := node.Anwser(v)
+				if tmp != nil {
+					node.push(*tmp, v.Source)
+					log.Println("send a anwser")
+				}
+			case FLAG_CANDIDATE:
+				node.AddCandidate(v.Source, &webrtc.ICECandidateInit{Candidate: string(v.Candidate)}, v.ID)
+				log.Println("add a candiate")
+			case FLAG_ANWER:
+				node.ConnectionPairs[v.Source].MakeConnection(v)
+				log.Println("add anwser")
+			case FLAG_UNKNOWN:
+				log.Println("Unknown connection info")
 			}
-		case FLAG_CANDIDATE:
-			node.AddCandidate(v.Source+CP_TYPE_CLIENT, &webrtc.ICECandidateInit{Candidate: string(v.Candidate)}, v.ID)
-		case FLAG_ANWER:
-			log.Println("Bad connection info")
-		case FLAG_UNKNOWN:
-			log.Println("Unknown connection info")
+		case <-ctx.Done():
+			log.Println("stop serve")
+
 		}
 	}
 }
@@ -214,49 +224,24 @@ func (node *Node) Serve(ctx context.Context) {
 func (node *Node) Connect(ctx context.Context, sock net.Conn, targetKey string) {
 	key := targetKey
 	ch := node.OpenConnections(key, CP_TYPE_SERVER, &sock)
-	info := node.Offer(key + CP_TYPE_SERVER)
-	err := node.push(*info, key+CP_TYPE_SERVER)
+	info := node.Offer(key)
+	err := node.push(*info, key)
+	log.Println("push offer to ", key)
 	if err != nil {
 		log.Println(err)
-		os.Exit(1)
 	}
-	ctxSub, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go func(sub context.Context) {
-		for {
-			log.Println("pull waiting")
-			select {
-			case v := <-node.pull(ctx, node.ID+CP_TYPE_CLIENT):
-				switch v.Flag {
-				case FLAG_OFFER:
-					log.Println("Bad connection info")
-				case FLAG_CANDIDATE:
-					node.AddCandidate(v.Source+CP_TYPE_SERVER, &webrtc.ICECandidateInit{Candidate: string(v.Candidate)}, v.ID)
-					log.Println("add candidate")
-				case FLAG_ANWER:
-					node.ConnectionPairs[key+CP_TYPE_SERVER].MakeConnection(v)
-					log.Println("add anwser")
-				case FLAG_UNKNOWN:
-					log.Println("Unknown connection info")
-				}
-			case <-sub.Done():
-				log.Println("client loop exit 1")
-				return
-			}
-		}
-	}(ctxSub)
-	<-ch
-	close(ch)
-	log.Println("client loop exit 2")
+
+	log.Println("end of connection option", <-ch)
 }
 
 func (node *Node) push(info ConnectInfo, target string) error {
+	log.Println("push to target ", target)
 	buf := bytes.NewBuffer(nil)
 	if err := json.NewEncoder(buf).Encode(info); err != nil {
 		return err
 	}
 	client := http.Client{
-		Timeout: time.Second,
+		Timeout: 5 * time.Second,
 	}
 	resp, err := client.Post(node.SignalingServerAddr+
 		path.Join("/", "push", target), "application/json", buf)
@@ -270,50 +255,40 @@ func (node *Node) push(info ConnectInfo, target string) error {
 	return nil
 }
 
-func (node *Node) pull(ctx context.Context, id string) <-chan ConnectInfo {
-	ch := make(chan ConnectInfo)
-	var retry time.Duration
-	go func() {
-		faild := func() {
-			if retry < 10 {
-				retry++
-			}
-			time.Sleep(retry * time.Second)
-			log.Println("retry")
+func (node *Node) pull(ctx context.Context) <-chan ConnectInfo {
+	ch := make(chan ConnectInfo, 1)
+	for {
+		log.Println("start pull process with 30s timeout,with id ", node.ID)
+		client := http.Client{
+			Timeout: 30 * time.Second,
 		}
-		defer close(ch)
-		for {
-			client := http.Client{
-				Timeout: 30 * time.Second,
+		res, err := client.Get(node.SignalingServerAddr +
+			path.Join("/", "pull", node.ID))
+		log.Println("2 ", node.ID)
+		if err != nil {
+			log.Println("get failed:", err)
+			if ctx.Err() == context.Canceled {
+				return nil
 			}
-			res, err := client.Get(node.SignalingServerAddr +
-				path.Join("/", "pull", id))
-
-			if err != nil {
-				if ctx.Err() == context.Canceled {
-
-					return
-				}
-				log.Println("get failed:", err)
-				faild()
+			continue
+		}
+		log.Println("3 ", node.ID)
+		defer res.Body.Close()
+		log.Println("4 ", node.ID)
+		var info ConnectInfo
+		if err = json.NewDecoder(res.Body).Decode(&info); err != nil {
+			log.Println("get failed:", err)
+			if err == io.EOF {
 				continue
 			}
-			defer res.Body.Close()
-			retry = time.Duration(0)
-			var info ConnectInfo
-			if err = json.NewDecoder(res.Body).Decode(&info); err != nil {
-				if err == io.EOF {
-					continue
-				}
-				if ctx.Err() == context.Canceled {
-					return
-				}
-				log.Println("get failed:", err)
-				faild()
-				continue
+			if ctx.Err() == context.Canceled {
+				return nil
 			}
-			ch <- info
+			continue
 		}
-	}()
-	return ch
+		log.Println("5 ", node.ID)
+		ch <- info
+		log.Println("pull success")
+		return ch
+	}
 }

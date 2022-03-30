@@ -193,8 +193,5 @@ func (cp *ConnectionPair) AddCandidate(ca *webrtc.ICECandidateInit, id int64) {
 }
 
 func (cp *ConnectionPair) IsRemoteDscripterSet() bool {
-	if cp.PeerConnection.RemoteDescription() == nil {
-		return false
-	}
-	return true
+	return !(cp.PeerConnection.RemoteDescription() == nil)
 }

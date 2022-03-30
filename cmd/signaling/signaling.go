@@ -48,7 +48,7 @@ func pushData() http.Handler {
 		mu.Unlock()
 
 		res[r.URL.Path] <- info
-		log.Println("push from ", info.Source, r.URL.Path)
+		log.Println("push from ", info.Source, " to ", r.URL.Path)
 	})
 }
 
@@ -66,7 +66,7 @@ func pullData() http.Handler {
 		case <-ctx.Done():
 			return
 		case v := <-res[r.URL.Path]:
-			log.Println("pull from ", v.Source, r.URL.Path)
+			log.Println("pull from ", r.URL.Path, " to ", v)
 			w.Header().Add("Content-Type", "application/json")
 			if err := json.NewEncoder(w).Encode(v); err != nil {
 				log.Print("json encode failed:", err)
