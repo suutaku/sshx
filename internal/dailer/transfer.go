@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 
 	scp "github.com/bramvdbogaerde/go-scp"
+	"github.com/suutaku/sshx/internal/proto"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -36,12 +37,8 @@ func (dal *Dailer) Transfer(filePath, remotePath string, upload bool, scpClient 
 	return scpClient.CopyFromRemote(context.Background(), file, filepath.Join(remotePath, path.Base(file.Name())))
 }
 
-func (dal *Dailer) Copy(localPath, remotePath, host, port string, upload bool, conf ssh.ClientConfig) error {
-	log.Println("localPath", localPath)
-	log.Println("remotePath", remotePath)
-	log.Println("host", host)
-	log.Println("port", port)
-	err := dal.Connect(host, port, false, conf)
+func (dal *Dailer) Copy(localPath, remotePath string, req proto.ConnectRequest, upload bool, conf ssh.ClientConfig) error {
+	err := dal.Connect(req, conf)
 	if err != nil {
 		return err
 	}

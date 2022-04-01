@@ -2,20 +2,28 @@
 
 [![Build Status](https://travis-ci.com/suutaku/sshx.svg?branch=master)](https://travis-ci.com/suutaku/sshx)
 
-ssh p2p tunneling service. An enhanced version of `https://github.com/nobonobo/ssh-p2p.git`.
+
+ssh p2p tunneling service. An enhanced version of 
+`https://github.com/nobonobo/ssh-p2p.git`.
+
 
 ## Connection sequence
 
+Directly
+
 ```
-ssh ---dial---> sshx client
-sshx client <----negotiation----> sshx server
-sshd <--dial--- sshx server
+[ sshx CLI <----> ssh ] <-------> [ sshd ]
+```
+NAT Traversal
+
+```
+[ sshx CLI----> sshx client ] <----negotiation----> [ sshx server <-----> sshd ]
 ```
 
 ## Backend protocol
 
 * RTCDataChannel/WebRTC: [https://github.com/pion/webrtc/v3](https://github.com/pion/webrtc/v3)
-* Signaling server: [http://peer1.cotnetwork.com:8990](http://peer1.cotnetwork.com:8990)
+* Signaling server: [http://peer1.xxxxxxxx.com:8990](http://peer1.cotnetwork.com:8990)
 
 Server is not stable, just for testing. **Please use your own signaling server on production**.
 
@@ -49,7 +57,7 @@ Default configure as below:
       }
     ]
   },
-  "signalingserveraddr": "http://peer1.cotnetwork.com:8990"
+  "signalingserveraddr": "http://signalingserver.xxxxx.com:8990"
 }
 ```
 * `locallistenaddr` : sshx listen address.
@@ -71,14 +79,91 @@ signaling
 Start sshx:
 
 ```bash
-sshx -d
+Usage: sshx COMMAND [arg...]
+
+a webrtc based ssh remote tool
+
+Commands:
+  daemon       launch a sshx daemon
+  list         list configure informations
+  connect      connect to remote host
+  copy         cpy files or directories to remote host
+
+Run 'sshx COMMAND --help' for more information on a command.
 ```
-Connect to target device with devie ID:
+Daemoon
+
+```
+sshx daemon
+```
+**Note:** befor you run any command of sshx, you must run sshx as a daemon first.
+
+List configure informations
+
+```
+sshx list
+```
+
+Connect a remote device with ID or IP(domain)
 
 ```bash
-sshx -t [your target device id] # tell sshx deamon target id
-ssh -p 2222 [user]@127.0.0.1 # connect sshx deamon
+Usage: sshx connect [ -X ] [ -i ] [ -p ] ADDR
+
+connect to remote host
+
+Arguments:
+  ADDR                   remote target address [username]@[host]:[port]
+
+Options:
+  -X, --x11              using X11 opton, default false
+  -i, --identification   a private path, default empty for ~/.ssh/id_rsa
+  -p                     remote host port (default "22")
 ```
+Copy a file or dierctory just like ssh does
+
+```
+Usage: sshx copy [ -i ] [ -p ] FROM TO
+
+cpy files or directories to remote host
+
+Arguments:
+  FROM                   file path which want to coy
+  TO                     des path
+
+Options:
+  -i, --identification   a private key path, default empty for ~/.ssh/id_rsa
+  -p                     remote host port (default "22")
+```
+
+Proxy
+
+```
+Usage: sshx proxy COMMAND [arg...]
+
+manage proxy
+               
+Commands:      
+  start        start a proxy
+  stop         stop a proxy
+  list         list all working proxies
+               
+Run 'sshx proxy COMMAND --help' for more information on a command.
+```
+
+Features
+
+- [x] Connect devices directly like ssh client does
+- [x] Private key loggin
+- [x] X11 forwarding
+- [x] Connect devices behind NAT
+- [x] Copy file or directory like scp does
+- [x] Custom device ID
+- [x] Custom signaling server
+- [x] Multiple connection with one remote device
+- [x] A simple signaling server implementation
+- [x] Pure go
+- [x] Lunux system service supporting
+- [x] VS Code SSH remote suportting (use proxy way due the VS Code not an open source project)
 
 
 

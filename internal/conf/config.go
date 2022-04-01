@@ -18,6 +18,7 @@ import (
 type Configure struct {
 	LocalSSHAddr        string
 	LocalListenAddr     string
+	ProxyListenAddr     string
 	ID                  string
 	SignalingServerAddr string
 	RTCConf             webrtc.Configuration
@@ -31,6 +32,7 @@ type ConfManager struct {
 
 var defaultConfig = Configure{
 	LocalListenAddr:     "127.0.0.1:2222",
+	ProxyListenAddr:     "127.0.0.1:2223",
 	LocalSSHAddr:        "127.0.0.1:22",
 	ID:                  uuid.New().String(),
 	SignalingServerAddr: "http://140.179.153.231:11095",

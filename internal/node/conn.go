@@ -131,9 +131,10 @@ func (cp *ConnectionPair) Anwser(v ConnectInfo, id string) *ConnectInfo {
 		return nil
 	}
 	r := ConnectInfo{
-		Flag:   FLAG_ANWER,
-		SDP:    answer.SDP,
-		Source: id,
+		Flag:      FLAG_ANWER,
+		SDP:       answer.SDP,
+		Source:    id,
+		Timestamp: v.Timestamp,
 	}
 	return &r
 }
@@ -181,8 +182,6 @@ func (cp *ConnectionPair) Close() {
 
 func (cp *ConnectionPair) AddCandidate(ca *webrtc.ICECandidateInit, id int64) {
 	if cp != nil && id == cp.ID {
-		log.Println("Add cadidate!")
-
 		err := cp.PeerConnection.AddICECandidate(*ca)
 		if err != nil {
 			log.Println(err, cp.ID, id)

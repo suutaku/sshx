@@ -36,6 +36,7 @@ type ConnectInfo struct {
 	SDP       string `json:"sdp"`
 	Candidate []byte `json:"candidate"`
 	ID        int64  `json:"id"`
+	Timestamp int64
 }
 
 type sendWrap struct {
@@ -53,6 +54,7 @@ type Node struct {
 	connectionMux   sync.Mutex
 	PendingCadidate map[string][]*webrtc.ICECandidateInit
 	candidateMux    sync.Mutex
+	pm              *ProxyManager
 }
 
 func NewNode(cnf *conf.Configure) *Node {
@@ -60,6 +62,7 @@ func NewNode(cnf *conf.Configure) *Node {
 		Configure:       cnf,
 		ConnectionPairs: make(map[string]*ConnectionPair),
 		PendingCadidate: make(map[string][]*webrtc.ICECandidateInit),
+		pm:              NewProxyManager(),
 	}
 }
 
@@ -71,20 +74,25 @@ func (node *Node) CloseConnections(key string) {
 	node.connectionMux.Lock()
 	defer node.connectionMux.Unlock()
 	if node.ConnectionPairs[key] != nil {
+		close(node.ConnectionPairs[key].Exit)
 		node.ConnectionPairs[key].Close()
 		delete(node.ConnectionPairs, key)
 		log.Println("Node close connection pair of ", key)
 	}
 }
 
-func (node *Node) OpenConnections(key string, cType string, sc *net.Conn) chan int {
+func (node *Node) OpenConnections(target proto.ConnectRequest, cType string, sc *net.Conn) chan int {
 	// node.CloseConnections(key + cType)
+	key := fmt.Sprintf("%s%d", target.Host, target.Timestamp)
+	log.Println("key ", key)
 	node.connectionMux.Lock()
+	log.Println("query lock ", key)
 	defer node.connectionMux.Unlock()
 	node.ConnectionPairs[key] = NewConnectionPair(node.RTCConf, sc, cType)
 	node.ConnectionPairs[key].PeerConnection.OnICECandidate(func(c *webrtc.ICECandidate) {
-		node.SignalCandidate(key, c)
+		node.SignalCandidate(target, c)
 	})
+	log.Println("return close channel ", key)
 	return node.ConnectionPairs[key].Exit
 }
 
@@ -108,21 +116,23 @@ func (node *Node) AddCandidate(key string, ca *webrtc.ICECandidateInit, id int64
 	node.candidateMux.Unlock()
 }
 
-func (node *Node) SignalCandidate(addr string, c *webrtc.ICECandidate) {
+func (node *Node) SignalCandidate(target proto.ConnectRequest, c *webrtc.ICECandidate) {
 	if c == nil {
 		return
 	}
-	if node.ConnectionPairs[addr] == nil {
+	key := fmt.Sprintf("%s%d", target.Host, target.Timestamp)
+	if node.ConnectionPairs[key] == nil {
 		return
 	}
 	info := ConnectInfo{
 		Flag:      FLAG_CANDIDATE,
 		Source:    node.ID,
 		Candidate: []byte(c.ToJSON().Candidate),
-		ID:        node.ConnectionPairs[addr].ID,
+		ID:        node.ConnectionPairs[key].ID,
+		Timestamp: target.Timestamp,
 	}
-	node.push(info, addr)
-	log.Println("Push candidate to ", addr, "!")
+	node.push(info, target.Host)
+	log.Println("Push candidate to ", target.Host, "!")
 
 }
 
@@ -166,11 +176,79 @@ func (node *Node) Start(ctx context.Context) {
 					sock.Close()
 					continue
 				}
-				log.Println("new connection request: ", req.Host)
-				go node.Connect(ctx, sock, req.Host)
+				switch req.Type {
+				case conf.TYPE_CONNECTION:
+					log.Println("make a connection to ", req.Host)
+					go node.Connect(ctx, sock, req)
+				case conf.TYPE_START_PROXY:
+					log.Println("start a proxy to ", req.Host)
+					subCtx, cancl := context.WithCancel(context.Background())
+					go node.Proxy(subCtx, req)
+					rep := ProxyRepo{
+						ProxyInfo: proto.ProxyInfo{
+							Host:             req.Host,
+							Port:             req.Port,
+							ProxyPort:        req.ProxyPort,
+							StartTime:        time.Now().Unix(),
+							X11:              req.X11,
+							ConnectionNumber: 0,
+						},
+						ConnetionKey: fmt.Sprintf("%s%d", req.Host, req.Timestamp),
+						cancel:       &cancl,
+					}
+					node.pm.AddProxy(&rep)
+				case conf.TYPE_CLOSE_CONNECTION:
+					log.Println("close connection to ", req.Host)
+					go node.CloseConnections(fmt.Sprintf("%s%d", req.Host, req.Timestamp))
+					sock.Close()
+				case conf.TYPE_STOP_PROXY:
+					log.Println("stop proxy to ", req.Host)
+					list := node.pm.GetConnectionKeys(req.Host)
+					log.Printf("stop proxy to %v", list)
+					for _, v := range list {
+						node.CloseConnections(v)
+					}
+					node.pm.RemoveProxy(req.Host)
+					sock.Close()
+				case conf.TYPE_PROXY_LIST:
+					list := node.pm.GetProxyInfos(req.Host)
+					b, err := list.Marshal()
+					if err != nil {
+						log.Println(err)
+					}
+					sock.Write(b)
+
+				}
 			}
 		}
 	}()
+}
+
+func (node *Node) Proxy(ctx context.Context, req proto.ConnectRequest) {
+	tmpListenAddr := fmt.Sprintf(":%d", req.ProxyPort)
+	l, err := net.Listen("tcp", tmpListenAddr)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	log.Println("Proxy listen on:", tmpListenAddr)
+	runing := true
+	go func(runing *bool) {
+		for *runing {
+			sock, err := l.Accept()
+			if err != nil {
+				continue
+			}
+			go node.Connect(ctx, sock, req)
+		}
+		log.Println("proxy accept loop canceled")
+	}(&runing)
+
+	<-ctx.Done()
+	runing = false
+	log.Println("proxy canceled")
+	l.Close()
+
 }
 
 func (node *Node) Anwser(info ConnectInfo) *ConnectInfo {
@@ -180,13 +258,20 @@ func (node *Node) Anwser(info ConnectInfo) *ConnectInfo {
 		node.CloseConnections(info.Source)
 		return nil
 	}
-	node.OpenConnections(info.Source, CP_TYPE_CLIENT, &ssh)
-	node.SetConnectionPairID(info.Source, info.ID)
-	return node.ConnectionPairs[info.Source].Anwser(info, node.ID)
+	req := proto.ConnectRequest{
+		Host:      info.Source,
+		Timestamp: info.Timestamp,
+	}
+	key := fmt.Sprintf("%s%d", req.Host, req.Timestamp)
+	node.OpenConnections(req, CP_TYPE_CLIENT, &ssh)
+	node.SetConnectionPairID(key, info.ID)
+	return node.ConnectionPairs[key].Anwser(info, node.ID)
 }
 
-func (node *Node) Offer(key string) *ConnectInfo {
+func (node *Node) Offer(req proto.ConnectRequest) *ConnectInfo {
+	key := fmt.Sprintf("%s%d", req.Host, req.Timestamp)
 	info := node.ConnectionPairs[key].Offer(node.ID)
+	info.Timestamp = req.Timestamp
 	info.ID = node.ConnectionPairs[key].ID
 	return info
 }
@@ -196,21 +281,16 @@ func (node *Node) Serve(ctx context.Context) {
 	for {
 		select {
 		case v := <-node.pull(ctx):
-			log.Printf("info: %#v", v)
 			switch v.Flag {
 			case FLAG_OFFER:
-				log.Println("got a offer")
 				tmp := node.Anwser(v)
 				if tmp != nil {
 					node.push(*tmp, v.Source)
-					log.Println("send a anwser")
 				}
 			case FLAG_CANDIDATE:
-				node.AddCandidate(v.Source, &webrtc.ICECandidateInit{Candidate: string(v.Candidate)}, v.ID)
-				log.Println("add a candiate")
+				node.AddCandidate(fmt.Sprintf("%s%d", v.Source, v.Timestamp), &webrtc.ICECandidateInit{Candidate: string(v.Candidate)}, v.ID)
 			case FLAG_ANWER:
-				node.ConnectionPairs[v.Source].MakeConnection(v)
-				log.Println("add anwser")
+				node.ConnectionPairs[fmt.Sprintf("%s%d", v.Source, v.Timestamp)].MakeConnection(v)
 			case FLAG_UNKNOWN:
 				log.Println("Unknown connection info")
 			}
@@ -221,21 +301,23 @@ func (node *Node) Serve(ctx context.Context) {
 	}
 }
 
-func (node *Node) Connect(ctx context.Context, sock net.Conn, targetKey string) {
-	key := targetKey
-	ch := node.OpenConnections(key, CP_TYPE_SERVER, &sock)
-	info := node.Offer(key)
-	err := node.push(*info, key)
-	log.Println("push offer to ", key)
+func (node *Node) Connect(ctx context.Context, sock net.Conn, target proto.ConnectRequest) {
+
+	ch := node.OpenConnections(target, CP_TYPE_SERVER, &sock)
+	log.Println("open connection 1")
+	info := node.Offer(target)
+	log.Println("open offer 1")
+	info.Timestamp = target.Timestamp
+	log.Println("open push ", target.Host)
+	err := node.push(*info, target.Host)
 	if err != nil {
 		log.Println(err)
 	}
-
+	log.Println("watting connection abord")
 	log.Println("end of connection option", <-ch)
 }
 
 func (node *Node) push(info ConnectInfo, target string) error {
-	log.Println("push to target ", target)
 	buf := bytes.NewBuffer(nil)
 	if err := json.NewEncoder(buf).Encode(info); err != nil {
 		return err
@@ -258,26 +340,20 @@ func (node *Node) push(info ConnectInfo, target string) error {
 func (node *Node) pull(ctx context.Context) <-chan ConnectInfo {
 	ch := make(chan ConnectInfo, 1)
 	for {
-		log.Println("start pull process with 30s timeout,with id ", node.ID)
 		client := http.Client{
 			Timeout: 30 * time.Second,
 		}
 		res, err := client.Get(node.SignalingServerAddr +
 			path.Join("/", "pull", node.ID))
-		log.Println("2 ", node.ID)
 		if err != nil {
-			log.Println("get failed:", err)
 			if ctx.Err() == context.Canceled {
 				return nil
 			}
 			continue
 		}
-		log.Println("3 ", node.ID)
 		defer res.Body.Close()
-		log.Println("4 ", node.ID)
 		var info ConnectInfo
 		if err = json.NewDecoder(res.Body).Decode(&info); err != nil {
-			log.Println("get failed:", err)
 			if err == io.EOF {
 				continue
 			}
@@ -286,7 +362,6 @@ func (node *Node) pull(ctx context.Context) <-chan ConnectInfo {
 			}
 			continue
 		}
-		log.Println("5 ", node.ID)
 		ch <- info
 		log.Println("pull success")
 		return ch

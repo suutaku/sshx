@@ -4,12 +4,8 @@
 package proto
 
 import (
-	context "context"
 	fmt "fmt"
 	proto "github.com/golang/protobuf/proto"
-	grpc "google.golang.org/grpc"
-	codes "google.golang.org/grpc/codes"
-	status "google.golang.org/grpc/status"
 	io "io"
 	math "math"
 	math_bits "math/bits"
@@ -28,6 +24,11 @@ const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 type ConnectRequest struct {
 	Host                 string   `protobuf:"bytes,1,opt,name=Host,proto3" json:"Host,omitempty"`
+	Type                 int32    `protobuf:"varint,2,opt,name=Type,proto3" json:"Type,omitempty"`
+	Port                 int32    `protobuf:"varint,3,opt,name=Port,proto3" json:"Port,omitempty"`
+	X11                  bool     `protobuf:"varint,4,opt,name=X11,proto3" json:"X11,omitempty"`
+	Timestamp            int64    `protobuf:"varint,5,opt,name=Timestamp,proto3" json:"Timestamp,omitempty"`
+	ProxyPort            int32    `protobuf:"varint,6,opt,name=ProxyPort,proto3" json:"ProxyPort,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -71,6 +72,41 @@ func (m *ConnectRequest) GetHost() string {
 		return m.Host
 	}
 	return ""
+}
+
+func (m *ConnectRequest) GetType() int32 {
+	if m != nil {
+		return m.Type
+	}
+	return 0
+}
+
+func (m *ConnectRequest) GetPort() int32 {
+	if m != nil {
+		return m.Port
+	}
+	return 0
+}
+
+func (m *ConnectRequest) GetX11() bool {
+	if m != nil {
+		return m.X11
+	}
+	return false
+}
+
+func (m *ConnectRequest) GetTimestamp() int64 {
+	if m != nil {
+		return m.Timestamp
+	}
+	return 0
+}
+
+func (m *ConnectRequest) GetProxyPort() int32 {
+	if m != nil {
+		return m.ProxyPort
+	}
+	return 0
 }
 
 type ConnectResponse struct {
@@ -120,105 +156,342 @@ func (m *ConnectResponse) GetHost() string {
 	return ""
 }
 
+type ProxyInfo struct {
+	Host                 string   `protobuf:"bytes,1,opt,name=Host,proto3" json:"Host,omitempty"`
+	Type                 int32    `protobuf:"varint,2,opt,name=Type,proto3" json:"Type,omitempty"`
+	Port                 int32    `protobuf:"varint,3,opt,name=Port,proto3" json:"Port,omitempty"`
+	X11                  bool     `protobuf:"varint,4,opt,name=X11,proto3" json:"X11,omitempty"`
+	ProxyPort            int32    `protobuf:"varint,5,opt,name=ProxyPort,proto3" json:"ProxyPort,omitempty"`
+	Status               int32    `protobuf:"varint,6,opt,name=Status,proto3" json:"Status,omitempty"`
+	StartTime            int64    `protobuf:"varint,7,opt,name=StartTime,proto3" json:"StartTime,omitempty"`
+	ConnectionNumber     int32    `protobuf:"varint,8,opt,name=ConnectionNumber,proto3" json:"ConnectionNumber,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ProxyInfo) Reset()         { *m = ProxyInfo{} }
+func (m *ProxyInfo) String() string { return proto.CompactTextString(m) }
+func (*ProxyInfo) ProtoMessage()    {}
+func (*ProxyInfo) Descriptor() ([]byte, []int) {
+	return fileDescriptor_81159ba547ea6f30, []int{2}
+}
+func (m *ProxyInfo) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ProxyInfo) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ProxyInfo.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ProxyInfo) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ProxyInfo.Merge(m, src)
+}
+func (m *ProxyInfo) XXX_Size() int {
+	return m.Size()
+}
+func (m *ProxyInfo) XXX_DiscardUnknown() {
+	xxx_messageInfo_ProxyInfo.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ProxyInfo proto.InternalMessageInfo
+
+func (m *ProxyInfo) GetHost() string {
+	if m != nil {
+		return m.Host
+	}
+	return ""
+}
+
+func (m *ProxyInfo) GetType() int32 {
+	if m != nil {
+		return m.Type
+	}
+	return 0
+}
+
+func (m *ProxyInfo) GetPort() int32 {
+	if m != nil {
+		return m.Port
+	}
+	return 0
+}
+
+func (m *ProxyInfo) GetX11() bool {
+	if m != nil {
+		return m.X11
+	}
+	return false
+}
+
+func (m *ProxyInfo) GetProxyPort() int32 {
+	if m != nil {
+		return m.ProxyPort
+	}
+	return 0
+}
+
+func (m *ProxyInfo) GetStatus() int32 {
+	if m != nil {
+		return m.Status
+	}
+	return 0
+}
+
+func (m *ProxyInfo) GetStartTime() int64 {
+	if m != nil {
+		return m.StartTime
+	}
+	return 0
+}
+
+func (m *ProxyInfo) GetConnectionNumber() int32 {
+	if m != nil {
+		return m.ConnectionNumber
+	}
+	return 0
+}
+
+type DestroyProxRequest struct {
+	Host                 []string `protobuf:"bytes,1,rep,name=Host,proto3" json:"Host,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *DestroyProxRequest) Reset()         { *m = DestroyProxRequest{} }
+func (m *DestroyProxRequest) String() string { return proto.CompactTextString(m) }
+func (*DestroyProxRequest) ProtoMessage()    {}
+func (*DestroyProxRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_81159ba547ea6f30, []int{3}
+}
+func (m *DestroyProxRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *DestroyProxRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_DestroyProxRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *DestroyProxRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DestroyProxRequest.Merge(m, src)
+}
+func (m *DestroyProxRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *DestroyProxRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_DestroyProxRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DestroyProxRequest proto.InternalMessageInfo
+
+func (m *DestroyProxRequest) GetHost() []string {
+	if m != nil {
+		return m.Host
+	}
+	return nil
+}
+
+type DestroyProxResponse struct {
+	Error                string       `protobuf:"bytes,1,opt,name=Error,proto3" json:"Error,omitempty"`
+	Info                 []*ProxyInfo `protobuf:"bytes,2,rep,name=Info,proto3" json:"Info,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}     `json:"-"`
+	XXX_unrecognized     []byte       `json:"-"`
+	XXX_sizecache        int32        `json:"-"`
+}
+
+func (m *DestroyProxResponse) Reset()         { *m = DestroyProxResponse{} }
+func (m *DestroyProxResponse) String() string { return proto.CompactTextString(m) }
+func (*DestroyProxResponse) ProtoMessage()    {}
+func (*DestroyProxResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_81159ba547ea6f30, []int{4}
+}
+func (m *DestroyProxResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *DestroyProxResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_DestroyProxResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *DestroyProxResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DestroyProxResponse.Merge(m, src)
+}
+func (m *DestroyProxResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *DestroyProxResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_DestroyProxResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DestroyProxResponse proto.InternalMessageInfo
+
+func (m *DestroyProxResponse) GetError() string {
+	if m != nil {
+		return m.Error
+	}
+	return ""
+}
+
+func (m *DestroyProxResponse) GetInfo() []*ProxyInfo {
+	if m != nil {
+		return m.Info
+	}
+	return nil
+}
+
+type ListDestroyReqeust struct {
+	Proxies              []*ProxyInfo `protobuf:"bytes,1,rep,name=Proxies,proto3" json:"Proxies,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}     `json:"-"`
+	XXX_unrecognized     []byte       `json:"-"`
+	XXX_sizecache        int32        `json:"-"`
+}
+
+func (m *ListDestroyReqeust) Reset()         { *m = ListDestroyReqeust{} }
+func (m *ListDestroyReqeust) String() string { return proto.CompactTextString(m) }
+func (*ListDestroyReqeust) ProtoMessage()    {}
+func (*ListDestroyReqeust) Descriptor() ([]byte, []int) {
+	return fileDescriptor_81159ba547ea6f30, []int{5}
+}
+func (m *ListDestroyReqeust) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ListDestroyReqeust) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ListDestroyReqeust.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ListDestroyReqeust) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ListDestroyReqeust.Merge(m, src)
+}
+func (m *ListDestroyReqeust) XXX_Size() int {
+	return m.Size()
+}
+func (m *ListDestroyReqeust) XXX_DiscardUnknown() {
+	xxx_messageInfo_ListDestroyReqeust.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ListDestroyReqeust proto.InternalMessageInfo
+
+func (m *ListDestroyReqeust) GetProxies() []*ProxyInfo {
+	if m != nil {
+		return m.Proxies
+	}
+	return nil
+}
+
+type ListDestroyResponse struct {
+	List                 []*ProxyInfo `protobuf:"bytes,1,rep,name=List,proto3" json:"List,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}     `json:"-"`
+	XXX_unrecognized     []byte       `json:"-"`
+	XXX_sizecache        int32        `json:"-"`
+}
+
+func (m *ListDestroyResponse) Reset()         { *m = ListDestroyResponse{} }
+func (m *ListDestroyResponse) String() string { return proto.CompactTextString(m) }
+func (*ListDestroyResponse) ProtoMessage()    {}
+func (*ListDestroyResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_81159ba547ea6f30, []int{6}
+}
+func (m *ListDestroyResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ListDestroyResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ListDestroyResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ListDestroyResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ListDestroyResponse.Merge(m, src)
+}
+func (m *ListDestroyResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *ListDestroyResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_ListDestroyResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ListDestroyResponse proto.InternalMessageInfo
+
+func (m *ListDestroyResponse) GetList() []*ProxyInfo {
+	if m != nil {
+		return m.List
+	}
+	return nil
+}
+
 func init() {
-	proto.RegisterType((*ConnectRequest)(nil), "sshx.pb.ConnectRequest")
-	proto.RegisterType((*ConnectResponse)(nil), "sshx.pb.ConnectResponse")
+	proto.RegisterType((*ConnectRequest)(nil), "proto.ConnectRequest")
+	proto.RegisterType((*ConnectResponse)(nil), "proto.ConnectResponse")
+	proto.RegisterType((*ProxyInfo)(nil), "proto.ProxyInfo")
+	proto.RegisterType((*DestroyProxRequest)(nil), "proto.DestroyProxRequest")
+	proto.RegisterType((*DestroyProxResponse)(nil), "proto.DestroyProxResponse")
+	proto.RegisterType((*ListDestroyReqeust)(nil), "proto.ListDestroyReqeust")
+	proto.RegisterType((*ListDestroyResponse)(nil), "proto.ListDestroyResponse")
 }
 
 func init() { proto.RegisterFile("cli.proto", fileDescriptor_81159ba547ea6f30) }
 
 var fileDescriptor_81159ba547ea6f30 = []byte{
-	// 145 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0xe2, 0x4c, 0xce, 0xc9, 0xd4,
-	0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x17, 0x62, 0x2f, 0x2e, 0xce, 0xa8, 0xd0, 0x2b, 0x48, 0x52, 0x52,
-	0xe1, 0xe2, 0x73, 0xce, 0xcf, 0xcb, 0x4b, 0x4d, 0x2e, 0x09, 0x4a, 0x2d, 0x2c, 0x4d, 0x2d, 0x2e,
-	0x11, 0x12, 0xe2, 0x62, 0xf1, 0xc8, 0x2f, 0x2e, 0x91, 0x60, 0x54, 0x60, 0xd4, 0xe0, 0x0c, 0x02,
-	0xb3, 0x95, 0x54, 0xb9, 0xf8, 0xe1, 0xaa, 0x8a, 0x0b, 0xf2, 0xf3, 0x8a, 0x53, 0xb1, 0x29, 0x33,
-	0x72, 0xe6, 0x62, 0x76, 0xce, 0xc9, 0x14, 0xb2, 0xe1, 0x62, 0x87, 0xaa, 0x16, 0x12, 0xd7, 0x83,
-	0x5a, 0xa4, 0x87, 0x6a, 0x8b, 0x94, 0x04, 0xa6, 0x04, 0xc4, 0x60, 0x27, 0x81, 0x13, 0x8f, 0xe4,
-	0x18, 0x2f, 0x3c, 0x92, 0x63, 0x7c, 0xf0, 0x48, 0x8e, 0x71, 0xc6, 0x63, 0x39, 0x86, 0x24, 0x36,
-	0xb0, 0x9b, 0x8d, 0x01, 0x01, 0x00, 0x00, 0xff, 0xff, 0x18, 0x00, 0xd7, 0xf7, 0xc0, 0x00, 0x00,
-	0x00,
-}
-
-// Reference imports to suppress errors if they are not otherwise used.
-var _ context.Context
-var _ grpc.ClientConn
-
-// This is a compile-time assertion to ensure that this generated file
-// is compatible with the grpc package it is being compiled against.
-const _ = grpc.SupportPackageIsVersion4
-
-// CliClient is the client API for Cli service.
-//
-// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
-type CliClient interface {
-	Connect(ctx context.Context, in *ConnectRequest, opts ...grpc.CallOption) (*ConnectResponse, error)
-}
-
-type cliClient struct {
-	cc *grpc.ClientConn
-}
-
-func NewCliClient(cc *grpc.ClientConn) CliClient {
-	return &cliClient{cc}
-}
-
-func (c *cliClient) Connect(ctx context.Context, in *ConnectRequest, opts ...grpc.CallOption) (*ConnectResponse, error) {
-	out := new(ConnectResponse)
-	err := c.cc.Invoke(ctx, "/sshx.pb.Cli/Connect", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// CliServer is the server API for Cli service.
-type CliServer interface {
-	Connect(context.Context, *ConnectRequest) (*ConnectResponse, error)
-}
-
-// UnimplementedCliServer can be embedded to have forward compatible implementations.
-type UnimplementedCliServer struct {
-}
-
-func (*UnimplementedCliServer) Connect(ctx context.Context, req *ConnectRequest) (*ConnectResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Connect not implemented")
-}
-
-func RegisterCliServer(s *grpc.Server, srv CliServer) {
-	s.RegisterService(&_Cli_serviceDesc, srv)
-}
-
-func _Cli_Connect_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ConnectRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(CliServer).Connect(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/sshx.pb.Cli/Connect",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(CliServer).Connect(ctx, req.(*ConnectRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-var _Cli_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "sshx.pb.Cli",
-	HandlerType: (*CliServer)(nil),
-	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "Connect",
-			Handler:    _Cli_Connect_Handler,
-		},
-	},
-	Streams:  []grpc.StreamDesc{},
-	Metadata: "cli.proto",
+	// 359 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x52, 0xcd, 0x4a, 0xf3, 0x40,
+	0x14, 0xfd, 0xa6, 0x49, 0xfa, 0x73, 0x3f, 0xd0, 0x30, 0x15, 0x99, 0x85, 0x84, 0x10, 0x2a, 0x84,
+	0x2e, 0x0a, 0xd5, 0xa5, 0x1b, 0xf1, 0x07, 0x14, 0x44, 0x6a, 0xda, 0x85, 0xdb, 0xb6, 0x8c, 0x10,
+	0xb0, 0x99, 0x74, 0xe6, 0x06, 0xec, 0x9b, 0x88, 0x4f, 0xe4, 0xd2, 0xad, 0x3b, 0xa9, 0x2f, 0x22,
+	0x33, 0x19, 0x53, 0x6a, 0xeb, 0xce, 0x55, 0xee, 0x9c, 0x7b, 0xcf, 0x99, 0x73, 0x4f, 0x06, 0x5a,
+	0xd3, 0xc7, 0xb4, 0x97, 0x4b, 0x81, 0x82, 0x7a, 0xe6, 0x13, 0xbd, 0x10, 0xd8, 0x39, 0x17, 0x59,
+	0xc6, 0xa7, 0x98, 0xf0, 0x79, 0xc1, 0x15, 0x52, 0x0a, 0xee, 0x95, 0x50, 0xc8, 0x48, 0x48, 0xe2,
+	0x56, 0x62, 0x6a, 0x8d, 0x8d, 0x16, 0x39, 0x67, 0xb5, 0x90, 0xc4, 0x5e, 0x62, 0x6a, 0x8d, 0x0d,
+	0x84, 0x44, 0xe6, 0x94, 0x98, 0xae, 0xa9, 0x0f, 0xce, 0x7d, 0xbf, 0xcf, 0xdc, 0x90, 0xc4, 0xcd,
+	0x44, 0x97, 0xf4, 0x00, 0x5a, 0xa3, 0x74, 0xc6, 0x15, 0x8e, 0x67, 0x39, 0xf3, 0x42, 0x12, 0x3b,
+	0xc9, 0x0a, 0xd0, 0xdd, 0x81, 0x14, 0x4f, 0x0b, 0x23, 0x54, 0x37, 0x42, 0x2b, 0x20, 0x3a, 0x84,
+	0xdd, 0xca, 0x9b, 0xca, 0x45, 0xa6, 0xf8, 0x36, 0x73, 0xd1, 0x3b, 0xb1, 0x2a, 0xd7, 0xd9, 0x83,
+	0xf8, 0x7b, 0xfb, 0x2b, 0x83, 0xde, 0x0f, 0x83, 0x74, 0x1f, 0xea, 0x43, 0x1c, 0x63, 0xa1, 0xac,
+	0x77, 0x7b, 0xd2, 0xac, 0x21, 0x8e, 0x25, 0xea, 0x45, 0x59, 0xa3, 0x5c, 0xba, 0x02, 0x68, 0x17,
+	0x7c, 0xbb, 0x56, 0x2a, 0xb2, 0xdb, 0x62, 0x36, 0xe1, 0x92, 0x35, 0x0d, 0x7f, 0x03, 0x8f, 0x62,
+	0xa0, 0x17, 0x5c, 0xa1, 0x14, 0x0b, 0x7d, 0xeb, 0xe6, 0x2f, 0x72, 0xaa, 0x14, 0xee, 0xa0, 0xbd,
+	0x36, 0x69, 0x03, 0xdb, 0x03, 0xef, 0x52, 0x4a, 0x21, 0x6d, 0x1e, 0xe5, 0x81, 0x76, 0xc0, 0xd5,
+	0x61, 0xb1, 0x5a, 0xe8, 0xc4, 0xff, 0x8f, 0xfc, 0xf2, 0x4d, 0xf4, 0xaa, 0x10, 0x13, 0xd3, 0x8d,
+	0x4e, 0x81, 0xde, 0xa4, 0x0a, 0xad, 0x6c, 0xc2, 0xe7, 0xbc, 0x50, 0x48, 0xbb, 0xd0, 0xd0, 0x83,
+	0x29, 0x57, 0xe6, 0xfe, 0x6d, 0xf4, 0xef, 0x81, 0xe8, 0x04, 0xda, 0x6b, 0x0a, 0xd6, 0x54, 0x07,
+	0x5c, 0x0d, 0xff, 0xca, 0x37, 0xdd, 0x33, 0xff, 0x75, 0x19, 0x90, 0xb7, 0x65, 0x40, 0x3e, 0x96,
+	0x01, 0x79, 0xfe, 0x0c, 0xfe, 0x4d, 0xea, 0x66, 0xf0, 0xf8, 0x2b, 0x00, 0x00, 0xff, 0xff, 0x48,
+	0xa0, 0xf4, 0x40, 0xc8, 0x02, 0x00, 0x00,
 }
 
 func (m *ConnectRequest) Marshal() (dAtA []byte, err error) {
@@ -244,6 +517,36 @@ func (m *ConnectRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if m.XXX_unrecognized != nil {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.ProxyPort != 0 {
+		i = encodeVarintCli(dAtA, i, uint64(m.ProxyPort))
+		i--
+		dAtA[i] = 0x30
+	}
+	if m.Timestamp != 0 {
+		i = encodeVarintCli(dAtA, i, uint64(m.Timestamp))
+		i--
+		dAtA[i] = 0x28
+	}
+	if m.X11 {
+		i--
+		if m.X11 {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x20
+	}
+	if m.Port != 0 {
+		i = encodeVarintCli(dAtA, i, uint64(m.Port))
+		i--
+		dAtA[i] = 0x18
+	}
+	if m.Type != 0 {
+		i = encodeVarintCli(dAtA, i, uint64(m.Type))
+		i--
+		dAtA[i] = 0x10
 	}
 	if len(m.Host) > 0 {
 		i -= len(m.Host)
@@ -289,6 +592,246 @@ func (m *ConnectResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
+func (m *ProxyInfo) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ProxyInfo) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ProxyInfo) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.ConnectionNumber != 0 {
+		i = encodeVarintCli(dAtA, i, uint64(m.ConnectionNumber))
+		i--
+		dAtA[i] = 0x40
+	}
+	if m.StartTime != 0 {
+		i = encodeVarintCli(dAtA, i, uint64(m.StartTime))
+		i--
+		dAtA[i] = 0x38
+	}
+	if m.Status != 0 {
+		i = encodeVarintCli(dAtA, i, uint64(m.Status))
+		i--
+		dAtA[i] = 0x30
+	}
+	if m.ProxyPort != 0 {
+		i = encodeVarintCli(dAtA, i, uint64(m.ProxyPort))
+		i--
+		dAtA[i] = 0x28
+	}
+	if m.X11 {
+		i--
+		if m.X11 {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x20
+	}
+	if m.Port != 0 {
+		i = encodeVarintCli(dAtA, i, uint64(m.Port))
+		i--
+		dAtA[i] = 0x18
+	}
+	if m.Type != 0 {
+		i = encodeVarintCli(dAtA, i, uint64(m.Type))
+		i--
+		dAtA[i] = 0x10
+	}
+	if len(m.Host) > 0 {
+		i -= len(m.Host)
+		copy(dAtA[i:], m.Host)
+		i = encodeVarintCli(dAtA, i, uint64(len(m.Host)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *DestroyProxRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *DestroyProxRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *DestroyProxRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Host) > 0 {
+		for iNdEx := len(m.Host) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Host[iNdEx])
+			copy(dAtA[i:], m.Host[iNdEx])
+			i = encodeVarintCli(dAtA, i, uint64(len(m.Host[iNdEx])))
+			i--
+			dAtA[i] = 0xa
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *DestroyProxResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *DestroyProxResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *DestroyProxResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Info) > 0 {
+		for iNdEx := len(m.Info) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Info[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintCli(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x12
+		}
+	}
+	if len(m.Error) > 0 {
+		i -= len(m.Error)
+		copy(dAtA[i:], m.Error)
+		i = encodeVarintCli(dAtA, i, uint64(len(m.Error)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *ListDestroyReqeust) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ListDestroyReqeust) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ListDestroyReqeust) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.Proxies) > 0 {
+		for iNdEx := len(m.Proxies) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Proxies[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintCli(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0xa
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *ListDestroyResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ListDestroyResponse) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ListDestroyResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.List) > 0 {
+		for iNdEx := len(m.List) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.List[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintCli(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0xa
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
 func encodeVarintCli(dAtA []byte, offset int, v uint64) int {
 	offset -= sovCli(v)
 	base := offset
@@ -310,6 +853,21 @@ func (m *ConnectRequest) Size() (n int) {
 	if l > 0 {
 		n += 1 + l + sovCli(uint64(l))
 	}
+	if m.Type != 0 {
+		n += 1 + sovCli(uint64(m.Type))
+	}
+	if m.Port != 0 {
+		n += 1 + sovCli(uint64(m.Port))
+	}
+	if m.X11 {
+		n += 2
+	}
+	if m.Timestamp != 0 {
+		n += 1 + sovCli(uint64(m.Timestamp))
+	}
+	if m.ProxyPort != 0 {
+		n += 1 + sovCli(uint64(m.ProxyPort))
+	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -325,6 +883,119 @@ func (m *ConnectResponse) Size() (n int) {
 	l = len(m.Host)
 	if l > 0 {
 		n += 1 + l + sovCli(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *ProxyInfo) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Host)
+	if l > 0 {
+		n += 1 + l + sovCli(uint64(l))
+	}
+	if m.Type != 0 {
+		n += 1 + sovCli(uint64(m.Type))
+	}
+	if m.Port != 0 {
+		n += 1 + sovCli(uint64(m.Port))
+	}
+	if m.X11 {
+		n += 2
+	}
+	if m.ProxyPort != 0 {
+		n += 1 + sovCli(uint64(m.ProxyPort))
+	}
+	if m.Status != 0 {
+		n += 1 + sovCli(uint64(m.Status))
+	}
+	if m.StartTime != 0 {
+		n += 1 + sovCli(uint64(m.StartTime))
+	}
+	if m.ConnectionNumber != 0 {
+		n += 1 + sovCli(uint64(m.ConnectionNumber))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *DestroyProxRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.Host) > 0 {
+		for _, s := range m.Host {
+			l = len(s)
+			n += 1 + l + sovCli(uint64(l))
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *DestroyProxResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Error)
+	if l > 0 {
+		n += 1 + l + sovCli(uint64(l))
+	}
+	if len(m.Info) > 0 {
+		for _, e := range m.Info {
+			l = e.Size()
+			n += 1 + l + sovCli(uint64(l))
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *ListDestroyReqeust) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.Proxies) > 0 {
+		for _, e := range m.Proxies {
+			l = e.Size()
+			n += 1 + l + sovCli(uint64(l))
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *ListDestroyResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.List) > 0 {
+		for _, e := range m.List {
+			l = e.Size()
+			n += 1 + l + sovCli(uint64(l))
+		}
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -399,6 +1070,102 @@ func (m *ConnectRequest) Unmarshal(dAtA []byte) error {
 			}
 			m.Host = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Type", wireType)
+			}
+			m.Type = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowCli
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Type |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Port", wireType)
+			}
+			m.Port = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowCli
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Port |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field X11", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowCli
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.X11 = bool(v != 0)
+		case 5:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Timestamp", wireType)
+			}
+			m.Timestamp = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowCli
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Timestamp |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ProxyPort", wireType)
+			}
+			m.ProxyPort = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowCli
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ProxyPort |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := skipCli(dAtA[iNdEx:])
@@ -481,6 +1248,593 @@ func (m *ConnectResponse) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.Host = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipCli(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthCli
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ProxyInfo) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowCli
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ProxyInfo: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ProxyInfo: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Host", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowCli
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthCli
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthCli
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Host = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Type", wireType)
+			}
+			m.Type = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowCli
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Type |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Port", wireType)
+			}
+			m.Port = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowCli
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Port |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field X11", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowCli
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.X11 = bool(v != 0)
+		case 5:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ProxyPort", wireType)
+			}
+			m.ProxyPort = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowCli
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ProxyPort |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Status", wireType)
+			}
+			m.Status = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowCli
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Status |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 7:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StartTime", wireType)
+			}
+			m.StartTime = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowCli
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.StartTime |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 8:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ConnectionNumber", wireType)
+			}
+			m.ConnectionNumber = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowCli
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ConnectionNumber |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipCli(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthCli
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *DestroyProxRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowCli
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: DestroyProxRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: DestroyProxRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Host", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowCli
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthCli
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthCli
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Host = append(m.Host, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipCli(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthCli
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *DestroyProxResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowCli
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: DestroyProxResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: DestroyProxResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Error", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowCli
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthCli
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthCli
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Error = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Info", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowCli
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthCli
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthCli
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Info = append(m.Info, &ProxyInfo{})
+			if err := m.Info[len(m.Info)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipCli(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthCli
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ListDestroyReqeust) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowCli
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ListDestroyReqeust: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ListDestroyReqeust: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Proxies", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowCli
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthCli
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthCli
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Proxies = append(m.Proxies, &ProxyInfo{})
+			if err := m.Proxies[len(m.Proxies)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipCli(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthCli
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ListDestroyResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowCli
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ListDestroyResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ListDestroyResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field List", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowCli
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthCli
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthCli
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.List = append(m.List, &ProxyInfo{})
+			if err := m.List[len(m.List)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
