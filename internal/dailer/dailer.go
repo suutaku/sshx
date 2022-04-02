@@ -3,13 +3,13 @@ package dailer
 import (
 	"context"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/suutaku/sshx/internal/conf"
 	"github.com/suutaku/sshx/internal/proto"
 	"github.com/suutaku/sshx/internal/tools"
@@ -43,6 +43,7 @@ func (dal *Dailer) RequstPassword(conf *ssh.ClientConfig) {
 func (dal *Dailer) OpenTerminal(req proto.ConnectRequest, conf ssh.ClientConfig) error {
 	err := dal.Connect(req, conf)
 	if err != nil {
+		logrus.Error("after call connect", err)
 		return err
 	}
 	dal.fd = int(os.Stdin.Fd())
@@ -51,6 +52,7 @@ func (dal *Dailer) OpenTerminal(req proto.ConnectRequest, conf ssh.ClientConfig)
 	if err != nil {
 		return fmt.Errorf("terminal make raw: %s", err)
 	}
+	logrus.Debug("set terminal state")
 	w, h, err := terminal.GetSize(dal.fd)
 	if err != nil {
 		return fmt.Errorf("terminal get size: %s", err)
@@ -93,7 +95,6 @@ func (dal *Dailer) Connect(req proto.ConnectRequest, config ssh.ClientConfig) er
 
 	var err error
 	if config.Auth == nil || len(config.Auth) == 0 {
-		log.Panicln("auth not set")
 		dal.RequstPassword(&config)
 	}
 
@@ -112,28 +113,18 @@ func (dal *Dailer) Connect(req proto.ConnectRequest, config ssh.ClientConfig) er
 		}
 		c, chans, reqs, err := ssh.NewClientConn(conn, "", &config)
 		if err != nil {
-			if strings.Contains(err.Error(), "ssh: handshake failed: ssh: unable to authenticate") {
-				log.Println(err)
-				dal.RequstPassword(&config)
-				c, chans, reqs, err = ssh.NewClientConn(conn, "", &config)
-				if err != nil {
-					return err
-				}
-			} else {
-				return err
-			}
+			config.Auth = make([]ssh.AuthMethod, 0)
+			req.Timestamp = time.Now().Unix()
+			return dal.Connect(req, config)
 		}
 		dal.client = ssh.NewClient(c, chans, reqs)
 	default:
 		dal.client, err = ssh.Dial("tcp", fmt.Sprintf("%s:%d", req.Host, req.Port), &config)
 		if err != nil {
 			if strings.Contains(err.Error(), "ssh: handshake failed: ssh: unable to authenticate") {
-				log.Println(err)
-				dal.RequstPassword(&config)
-				dal.client, err = ssh.Dial("tcp", fmt.Sprintf("%s:%d", req.Host, req.Port), &config)
-				if err != nil {
-					return err
-				}
+				config.Auth = make([]ssh.AuthMethod, 0)
+				req.Timestamp = time.Now().Unix()
+				return dal.Connect(req, config)
 			} else {
 				return err
 			}
@@ -167,18 +158,19 @@ func (dal *Dailer) Close(req proto.ConnectRequest) {
 	}
 	conn, err := net.DialTimeout("tcp", dal.Conf.LocalListenAddr, time.Second)
 	if err != nil {
-		log.Println(err)
+		logrus.Error(err)
 	}
 	req.Type = conf.TYPE_CLOSE_CONNECTION
 	b, _ := req.Marshal()
 	conn.Write(b)
 	conn.Read(b)
+	conn.Close()
 }
 
 func (dal *Dailer) CloseProxy(id string) {
 	conn, err := net.DialTimeout("tcp", dal.Conf.LocalListenAddr, time.Second)
 	if err != nil {
-		log.Println(err)
+		logrus.Error(err)
 	}
 	req := proto.ConnectRequest{
 		Type: conf.TYPE_STOP_PROXY,
@@ -192,7 +184,7 @@ func (dal *Dailer) CloseProxy(id string) {
 func (dal *Dailer) GetProxyList(host string) (ret proto.ListDestroyResponse) {
 	conn, err := net.DialTimeout("tcp", dal.Conf.LocalListenAddr, time.Second)
 	if err != nil {
-		log.Println(err)
+		logrus.Error(err)
 		return ret
 	}
 	defer conn.Close()

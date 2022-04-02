@@ -93,14 +93,14 @@ Run 'sshx COMMAND --help' for more information on a command.
 ```
 Daemoon
 
-```
+```bash
 sshx daemon
 ```
 **Note:** befor you run any command of sshx, you must run sshx as a daemon first.
 
 List configure informations
 
-```
+```bash
 sshx list
 ```
 
@@ -121,7 +121,7 @@ Options:
 ```
 Copy a file or dierctory just like ssh does
 
-```
+```bash
 Usage: sshx copy [ -i ] [ -p ] FROM TO
 
 cpy files or directories to remote host
@@ -137,7 +137,7 @@ Options:
 
 Proxy
 
-```
+```bash
 Usage: sshx proxy COMMAND [arg...]
 
 manage proxy
@@ -164,6 +164,7 @@ Features
 - [x] Pure go
 - [x] Lunux system service supporting
 - [x] VS Code SSH remote suportting (use proxy way due the VS Code not an open source project)
+- [ ] VNC supporting
 
 
 

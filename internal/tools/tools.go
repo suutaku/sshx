@@ -5,11 +5,11 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"os/user"
 	"strings"
 
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -76,7 +76,7 @@ func GetParam(addrStr string) (userName, addr string, err error) {
 	if len(sps) < 2 {
 		user, err := user.Current()
 		if err != nil {
-			log.Fatalf(err.Error())
+			logrus.Fatalf(err.Error())
 		}
 		userName = user.Username
 		addr = sps[0]

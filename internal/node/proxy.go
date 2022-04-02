@@ -3,8 +3,9 @@ package node
 import (
 	"context"
 	"fmt"
-	"log"
+	"net"
 
+	"github.com/sirupsen/logrus"
 	"github.com/suutaku/sshx/internal/proto"
 )
 
@@ -35,7 +36,7 @@ func (pm *ProxyManager) Validation(info *ProxyRepo) error {
 }
 
 func (pm *ProxyManager) AddProxy(info *ProxyRepo) error {
-	log.Println("add proxy for ", info.Host)
+	logrus.Debug("add proxy for ", info.Host)
 	err := pm.Validation(info)
 	if err != nil {
 		return err
@@ -52,7 +53,7 @@ func (pm *ProxyManager) RemoveProxy(host string) {
 	if pm.repo[host] == nil {
 		return
 	}
-	log.Println("cancel proxy listening")
+	logrus.Debug("cancel proxy listening")
 	(*pm.repo[host].cancel)()
 	delete(pm.repo, host)
 }
@@ -83,4 +84,31 @@ func (pm *ProxyManager) GetProxyInfos(host string) proto.ListDestroyResponse {
 		ret.List = append(ret.List, &pm.repo[host].ProxyInfo)
 	}
 	return ret
+}
+
+func (node *Node) Proxy(ctx context.Context, req proto.ConnectRequest) {
+	tmpListenAddr := fmt.Sprintf(":%d", req.ProxyPort)
+	l, err := net.Listen("tcp", tmpListenAddr)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	logrus.Println("Proxy listen on:", tmpListenAddr)
+	runing := true
+	go func(runing *bool) {
+		for *runing {
+			sock, err := l.Accept()
+			if err != nil {
+				continue
+			}
+			go node.Connect(ctx, sock, req)
+		}
+		logrus.Println("proxy accept loop canceled")
+	}(&runing)
+
+	<-ctx.Done()
+	runing = false
+	logrus.Println("proxy canceled")
+	l.Close()
+
 }

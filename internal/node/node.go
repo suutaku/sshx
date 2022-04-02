@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -15,6 +14,7 @@ import (
 	"time"
 
 	"github.com/pion/webrtc/v3"
+	"github.com/sirupsen/logrus"
 	"github.com/suutaku/sshx/internal/conf"
 	"github.com/suutaku/sshx/internal/proto"
 )
@@ -77,22 +77,21 @@ func (node *Node) CloseConnections(key string) {
 		close(node.ConnectionPairs[key].Exit)
 		node.ConnectionPairs[key].Close()
 		delete(node.ConnectionPairs, key)
-		log.Println("Node close connection pair of ", key)
+		logrus.Debug("Node close connection pair of ", key)
 	}
 }
 
 func (node *Node) OpenConnections(target proto.ConnectRequest, cType string, sc *net.Conn) chan int {
-	// node.CloseConnections(key + cType)
 	key := fmt.Sprintf("%s%d", target.Host, target.Timestamp)
-	log.Println("key ", key)
+	logrus.Debug("key ", key)
 	node.connectionMux.Lock()
-	log.Println("query lock ", key)
+	logrus.Debug("query lock ", key)
 	defer node.connectionMux.Unlock()
 	node.ConnectionPairs[key] = NewConnectionPair(node.RTCConf, sc, cType)
 	node.ConnectionPairs[key].PeerConnection.OnICECandidate(func(c *webrtc.ICECandidate) {
 		node.SignalCandidate(target, c)
 	})
-	log.Println("return close channel ", key)
+	logrus.Debug("return close channel ", key)
 	return node.ConnectionPairs[key].Exit
 }
 
@@ -132,7 +131,7 @@ func (node *Node) SignalCandidate(target proto.ConnectRequest, c *webrtc.ICECand
 		Timestamp: target.Timestamp,
 	}
 	node.push(info, target.Host)
-	log.Println("Push candidate to ", target.Host, "!")
+	logrus.Debug("Push candidate to ", target.Host, "!")
 
 }
 
@@ -144,10 +143,10 @@ func (node *Node) Start(ctx context.Context) {
 	// listen as a "client"
 	l, err := net.Listen("tcp", node.LocalListenAddr)
 	if err != nil {
-		fmt.Println(err)
+		logrus.Error(err)
 		os.Exit(1)
 	}
-	log.Println("listen:", node.LocalListenAddr)
+	logrus.Info("local main service listenning on:", node.LocalListenAddr)
 	go func() {
 		for {
 			sock, err := l.Accept()
@@ -159,29 +158,30 @@ func (node *Node) Start(ctx context.Context) {
 			buf := make([]byte, 512)
 			n, err := sock.Read(buf)
 			if err != nil {
-				log.Println(err)
+				logrus.Error(err)
 				sock.Close()
 				continue
 			}
 			_, err = sock.Write([]byte("ok"))
 			if err != nil {
-				log.Println(err)
+				logrus.Error(err)
 				sock.Close()
 				continue
 			} else {
 				req := proto.ConnectRequest{}
 				err = req.Unmarshal(buf[:n])
 				if err != nil {
-					log.Println(err, string(buf[:n]))
+					logrus.Error(err, string(buf[:n]))
 					sock.Close()
 					continue
 				}
 				switch req.Type {
 				case conf.TYPE_CONNECTION:
-					log.Println("make a connection to ", req.Host)
+					logrus.Debug("make a connection to ", req.Host)
 					go node.Connect(ctx, sock, req)
 				case conf.TYPE_START_PROXY:
-					log.Println("start a proxy to ", req.Host)
+					logrus.Debug("start a proxy to ", req.Host)
+					conf.ClearKnownHosts("127.0.0.1")
 					subCtx, cancl := context.WithCancel(context.Background())
 					go node.Proxy(subCtx, req)
 					rep := ProxyRepo{
@@ -198,13 +198,12 @@ func (node *Node) Start(ctx context.Context) {
 					}
 					node.pm.AddProxy(&rep)
 				case conf.TYPE_CLOSE_CONNECTION:
-					log.Println("close connection to ", req.Host)
+					logrus.Debug("close connection to ", req.Host)
 					go node.CloseConnections(fmt.Sprintf("%s%d", req.Host, req.Timestamp))
 					sock.Close()
 				case conf.TYPE_STOP_PROXY:
-					log.Println("stop proxy to ", req.Host)
 					list := node.pm.GetConnectionKeys(req.Host)
-					log.Printf("stop proxy to %v", list)
+					logrus.Debug("stop proxy to %v", list)
 					for _, v := range list {
 						node.CloseConnections(v)
 					}
@@ -214,9 +213,13 @@ func (node *Node) Start(ctx context.Context) {
 					list := node.pm.GetProxyInfos(req.Host)
 					b, err := list.Marshal()
 					if err != nil {
-						log.Println(err)
+						logrus.Error(err)
 					}
 					sock.Write(b)
+				case conf.TYPE_START_VNC:
+					logrus.Debug("start vnc request come")
+				case conf.TYPE_STOP_VNC:
+					logrus.Debug("stop vnc request come")
 
 				}
 			}
@@ -224,37 +227,10 @@ func (node *Node) Start(ctx context.Context) {
 	}()
 }
 
-func (node *Node) Proxy(ctx context.Context, req proto.ConnectRequest) {
-	tmpListenAddr := fmt.Sprintf(":%d", req.ProxyPort)
-	l, err := net.Listen("tcp", tmpListenAddr)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	log.Println("Proxy listen on:", tmpListenAddr)
-	runing := true
-	go func(runing *bool) {
-		for *runing {
-			sock, err := l.Accept()
-			if err != nil {
-				continue
-			}
-			go node.Connect(ctx, sock, req)
-		}
-		log.Println("proxy accept loop canceled")
-	}(&runing)
-
-	<-ctx.Done()
-	runing = false
-	log.Println("proxy canceled")
-	l.Close()
-
-}
-
 func (node *Node) Anwser(info ConnectInfo) *ConnectInfo {
 	ssh, err := net.Dial("tcp", node.LocalSSHAddr)
 	if err != nil {
-		log.Println("ssh dial filed:", err)
+		logrus.Error("ssh dial filed:", err)
 		node.CloseConnections(info.Source)
 		return nil
 	}
@@ -277,7 +253,7 @@ func (node *Node) Offer(req proto.ConnectRequest) *ConnectInfo {
 }
 
 func (node *Node) Serve(ctx context.Context) {
-	log.Println("serve daemon")
+	logrus.Println("start sshx daemon")
 	for {
 		select {
 		case v := <-node.pull(ctx):
@@ -292,10 +268,10 @@ func (node *Node) Serve(ctx context.Context) {
 			case FLAG_ANWER:
 				node.ConnectionPairs[fmt.Sprintf("%s%d", v.Source, v.Timestamp)].MakeConnection(v)
 			case FLAG_UNKNOWN:
-				log.Println("Unknown connection info")
+				logrus.Error("unknown connection info")
 			}
 		case <-ctx.Done():
-			log.Println("stop serve")
+			logrus.Println("stop sshx daemon")
 
 		}
 	}
@@ -304,17 +280,14 @@ func (node *Node) Serve(ctx context.Context) {
 func (node *Node) Connect(ctx context.Context, sock net.Conn, target proto.ConnectRequest) {
 
 	ch := node.OpenConnections(target, CP_TYPE_SERVER, &sock)
-	log.Println("open connection 1")
 	info := node.Offer(target)
-	log.Println("open offer 1")
 	info.Timestamp = target.Timestamp
-	log.Println("open push ", target.Host)
 	err := node.push(*info, target.Host)
 	if err != nil {
-		log.Println(err)
+		logrus.Error(err)
 	}
-	log.Println("watting connection abord")
-	log.Println("end of connection option", <-ch)
+	logrus.Debug("watting connection abord")
+	logrus.Debug("end of connection option", <-ch)
 }
 
 func (node *Node) push(info ConnectInfo, target string) error {
@@ -363,7 +336,7 @@ func (node *Node) pull(ctx context.Context) <-chan ConnectInfo {
 			continue
 		}
 		ch <- info
-		log.Println("pull success")
+		logrus.Debug("pull success")
 		return ch
 	}
 }

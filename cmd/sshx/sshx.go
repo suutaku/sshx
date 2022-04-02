@@ -4,13 +4,13 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
 	cli "github.com/jawher/mow.cli"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/suutaku/sshx/internal/conf"
@@ -45,13 +45,13 @@ func privateKeyOption(keyPath string) {
 	}
 	pemBytes, err := ioutil.ReadFile(keyPath)
 	if err != nil {
-		log.Printf("Reading private key file failed %v", err)
+		logrus.Printf("Reading private key file failed %v", err)
 		os.Exit(0)
 	}
 	// create signer
 	signer, err := tools.SignerFromPem(pemBytes, nil)
 	if err != nil {
-		log.Println(err)
+		logrus.Error(err)
 		os.Exit(0)
 	}
 	sshConfig.Auth = append(sshConfig.Auth, ssh.PublicKeys(signer))
@@ -122,7 +122,7 @@ func cmdStartProxy(cmd *cli.Cmd) {
 			port = *portTmp
 		}
 		if proxyPort == nil || *proxyPort == 0 {
-			log.Println("please set local proxy port")
+			logrus.Println("please set local proxy port")
 			return
 		}
 		if addr == nil && *addr == "" {
@@ -130,7 +130,7 @@ func cmdStartProxy(cmd *cli.Cmd) {
 		}
 		userName, address, err := tools.GetParam(*addr)
 		if err != nil {
-			log.Println(err)
+			logrus.Error(err)
 			os.Exit(0)
 		}
 		sshConfig.User = userName
@@ -144,13 +144,13 @@ func cmdStartProxy(cmd *cli.Cmd) {
 			Timestamp: time.Now().Unix(),
 			ProxyPort: int32(*proxyPort),
 		}
-		log.Println("proxy set successfully, try ssh at:", req.Host, ":", req.ProxyPort)
+		logrus.Println("proxy set successfully, try ssh at:", req.Host, ":", req.ProxyPort)
 		if *detachTmp {
 			go func() {
 
 				err = dal.Connect(req, sshConfig)
 				if err != nil {
-					log.Println(err)
+					logrus.Error(err)
 					return
 				}
 				dal.Close(req)
@@ -158,7 +158,7 @@ func cmdStartProxy(cmd *cli.Cmd) {
 		} else {
 			err = dal.Connect(req, sshConfig)
 			if err != nil {
-				log.Println(err)
+				logrus.Error(err)
 			}
 			dal.Close(req)
 		}
@@ -187,7 +187,7 @@ func cmdConnect(cmd *cli.Cmd) {
 		}
 		userName, address, err := tools.GetParam(*addr)
 		if err != nil {
-			log.Println(err)
+			logrus.Error(err)
 			os.Exit(0)
 		}
 		sshConfig.User = userName
@@ -200,17 +200,13 @@ func cmdConnect(cmd *cli.Cmd) {
 			Type:      conf.TYPE_CONNECTION,
 			Timestamp: time.Now().Unix(),
 		}
-		err = dal.OpenTerminal(req, sshConfig)
-		if err != nil {
-			log.Println(err)
-		}
+		dal.OpenTerminal(req, sshConfig)
 		dal.Close(req)
 	}
 }
 
 func cmdDaemon(cmd *cli.Cmd) {
 	cmd.Action = func() {
-		log.Println("run as a daemon")
 		sig := make(chan os.Signal, 1)
 		signal.Notify(sig, syscall.SIGINT)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -238,7 +234,7 @@ func cmdCopy(cmd *cli.Cmd) {
 
 		userName, host, localPath, remotePath, upload, err := tools.ParseCopyParam(*fromPath, *toPath)
 		if err != nil {
-			log.Println(err)
+			logrus.Error(err)
 			os.Exit(0)
 		}
 		sshConfig.User = userName
@@ -259,15 +255,15 @@ func cmdCopy(cmd *cli.Cmd) {
 		}
 		err = dal.Copy(localPath, remotePath, req, upload, sshConfig)
 		if err != nil {
-			log.Println(err)
+			logrus.Error(err)
 		}
-		log.Println("copy process start to close")
+		logrus.Println("copy process start to close")
 		dal.Close(req)
 	}
 }
 
 func main() {
-	log.SetFlags(log.Lshortfile)
+	logrus.SetLevel(logrus.DebugLevel)
 	home := os.Getenv("SSH_XHOME")
 	if home != "" {
 		path = home
@@ -276,7 +272,7 @@ func main() {
 		// does not exist
 		err := os.MkdirAll(path, os.ModePerm)
 		if err != nil {
-			log.Println(err)
+			logrus.Error(err)
 			return
 		}
 	}

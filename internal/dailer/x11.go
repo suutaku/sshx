@@ -1,13 +1,12 @@
 package dailer
 
 import (
-	"errors"
-	"fmt"
 	"io"
 	"net"
 	"os"
 	"sync"
 
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -31,7 +30,7 @@ func (dal *Dailer) X11Request() {
 	// send x11-req Request
 	ok, err := dal.session.SendRequest("x11-req", true, ssh.Marshal(payload))
 	if err == nil && !ok {
-		fmt.Println(errors.New("ssh: x11-req failed"))
+		logrus.Error("ssh: x11-req failed")
 		return
 	}
 	x11channels := dal.client.HandleChannelOpen("x11")

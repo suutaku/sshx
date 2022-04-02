@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"io/fs"
 	"io/ioutil"
-	"log"
 	"os"
 	"path"
 	"path/filepath"
 
 	scp "github.com/bramvdbogaerde/go-scp"
+	"github.com/sirupsen/logrus"
 	"github.com/suutaku/sshx/internal/proto"
 	"golang.org/x/crypto/ssh"
 )
@@ -21,10 +21,10 @@ func (dal *Dailer) Transfer(filePath, remotePath string, upload bool, scpClient 
 	var err error
 
 	if upload {
-		log.Println("start upload: ", filePath, " to ", scpClient.Host, remotePath)
+		logrus.Debug("start upload: ", filePath, " to ", scpClient.Host, remotePath)
 		file, err = os.Open(filePath)
 	} else {
-		log.Println("start download: ", filePath, " to ", scpClient.Host, remotePath)
+		logrus.Debug("start download: ", filePath, " to ", scpClient.Host, remotePath)
 		file, err = os.Create(filePath)
 	}
 	if err != nil {
@@ -68,7 +68,7 @@ func (dal *Dailer) Copy(localPath, remotePath string, req proto.ConnectRequest, 
 				return err
 			}
 			for _, f := range files {
-				fmt.Println(f.Name())
+				logrus.Println(f.Name())
 				return dal.Transfer(f.Name(), remotePath, upload, &scpClient, f.Mode())
 			}
 		} else {
