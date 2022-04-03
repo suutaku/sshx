@@ -46,13 +46,13 @@ func privateKeyOption(keyPath string) {
 	pemBytes, err := ioutil.ReadFile(keyPath)
 	if err != nil {
 		logrus.Printf("Reading private key file failed %v", err)
-		os.Exit(0)
+		return
 	}
 	// create signer
 	signer, err := tools.SignerFromPem(pemBytes, nil)
 	if err != nil {
 		logrus.Error(err)
-		os.Exit(0)
+		return
 	}
 	sshConfig.Auth = append(sshConfig.Auth, ssh.PublicKeys(signer))
 }
