@@ -40,7 +40,7 @@ go get -u github.com/suutaku/sshx/cmd/sshx
 ```
 
 ## Configuration
-Configure file will created at first time at path: `$HOME/.sshx_config.json`.
+Configure file will created at first time at path: `/etc/sshx/.sshx_config.json`.
 Default configure as below:
 
 ```json

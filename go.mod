@@ -8,10 +8,13 @@ require (
 	github.com/golang/protobuf v1.4.3
 	github.com/google/uuid v1.2.0
 	github.com/gorilla/mux v1.8.0
+	github.com/gorilla/websocket v1.4.2
 	github.com/jawher/mow.cli v1.2.0
 	github.com/pion/webrtc/v3 v3.0.24
-	github.com/sirupsen/logrus v1.4.2
+	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/viper v1.7.1
-	github.com/wwt/guac v1.3.1
+	github.com/suutaku/go-vnc v0.0.0-20220403104243-5c760c15ef31
 	golang.org/x/crypto v0.0.0-20210513164829-c07d793c2f9a
 )
+
+replace github.com/suutaku/go-vnc => /Users/john/Desktop/work/go-vnc

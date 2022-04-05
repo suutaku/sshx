@@ -12,6 +12,7 @@ import (
 	"github.com/pion/webrtc/v3"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
+	"github.com/suutaku/go-vnc/pkg/config"
 )
 
 type Configure struct {
@@ -21,6 +22,7 @@ type Configure struct {
 	ID                  string
 	SignalingServerAddr string
 	RTCConf             webrtc.Configuration
+	VNCConf             config.Configure
 }
 
 type ConfManager struct {
@@ -31,7 +33,7 @@ type ConfManager struct {
 
 var defaultConfig = Configure{
 	LocalListenAddr:     "127.0.0.1:2222",
-	GuacListenAddr:      "127.0.0.1:2223",
+	GuacListenAddr:      "127.0.0.1:80",
 	LocalSSHAddr:        "127.0.0.1:22",
 	ID:                  uuid.New().String(),
 	SignalingServerAddr: "http://140.179.153.231:11095",
@@ -48,6 +50,7 @@ var defaultConfig = Configure{
 			},
 		},
 	},
+	VNCConf: config.DefaultConfigure,
 }
 
 func ClearKnownHosts(subStr string) {

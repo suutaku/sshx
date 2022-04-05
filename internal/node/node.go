@@ -15,6 +15,7 @@ import (
 
 	"github.com/pion/webrtc/v3"
 	"github.com/sirupsen/logrus"
+	"github.com/suutaku/go-vnc/pkg/vnc"
 	"github.com/suutaku/sshx/internal/conf"
 	"github.com/suutaku/sshx/internal/proto"
 )
@@ -30,13 +31,19 @@ var (
 	CP_TYPE_SERVER = "_server"
 )
 
+const (
+	CONNECTION_TYPE_SSH = iota
+	CONNECTION_TYPE_VNC
+)
+
 type ConnectInfo struct {
 	Flag      int    `json:"flag"`
 	Source    string `json:"source"`
 	SDP       string `json:"sdp"`
 	Candidate []byte `json:"candidate"`
 	ID        int64  `json:"id"`
-	Timestamp int64
+	Timestamp int64  `json:"timestamp"`
+	Type      int    `json:"type"`
 }
 
 type sendWrap struct {
@@ -55,15 +62,20 @@ type Node struct {
 	PendingCadidate map[string][]*webrtc.ICECandidateInit
 	candidateMux    sync.Mutex
 	pm              *ProxyManager
+	vncServer       *vnc.VNC
+	vncProx         *VNCProxy
 }
 
 func NewNode(cnf *conf.Configure) *Node {
-	return &Node{
+	ret := Node{
 		Configure:       cnf,
 		ConnectionPairs: make(map[string]*ConnectionPair),
 		PendingCadidate: make(map[string][]*webrtc.ICECandidateInit),
 		pm:              NewProxyManager(),
+		vncServer:       vnc.NewVNC(context.TODO(), cnf.VNCConf),
 	}
+	ret.vncProx = NewVNCProxy(&ret)
+	return &ret
 }
 
 func (node *Node) CloseConnections(key string) {
@@ -218,6 +230,7 @@ func (node *Node) Start(ctx context.Context) {
 					sock.Write(b)
 				case conf.TYPE_START_VNC:
 					logrus.Debug("start vnc request come")
+
 				case conf.TYPE_STOP_VNC:
 					logrus.Debug("stop vnc request come")
 
@@ -228,20 +241,41 @@ func (node *Node) Start(ctx context.Context) {
 }
 
 func (node *Node) Anwser(info ConnectInfo) *ConnectInfo {
-	ssh, err := net.Dial("tcp", node.LocalSSHAddr)
-	if err != nil {
-		logrus.Error("ssh dial filed:", err)
-		node.CloseConnections(info.Source)
-		return nil
+
+	switch info.Type {
+	case CONNECTION_TYPE_SSH:
+		ssh, err := net.Dial("tcp", node.LocalSSHAddr)
+		if err != nil {
+			logrus.Error("ssh dial filed:", err)
+			node.CloseConnections(info.Source)
+			return nil
+		}
+		req := proto.ConnectRequest{
+			Host:      info.Source,
+			Timestamp: info.Timestamp,
+		}
+		key := fmt.Sprintf("%s%d", req.Host, req.Timestamp)
+		node.OpenConnections(req, CP_TYPE_CLIENT, &ssh)
+		node.SetConnectionPairID(key, info.ID)
+		return node.ConnectionPairs[key].Anwser(info, node.ID)
+	case CONNECTION_TYPE_VNC:
+		vnc, err := net.Dial("tcp", fmt.Sprintf("%s:%d", node.VNCConf.TCP.Host, node.VNCConf.TCP.Port))
+		if err != nil {
+			logrus.Error("vnc dial filed:", err)
+			node.CloseConnections(info.Source)
+			return nil
+		}
+		req := proto.ConnectRequest{
+			Host:      info.Source,
+			Timestamp: info.Timestamp,
+		}
+		key := fmt.Sprintf("%s%d", req.Host, req.Timestamp)
+		node.OpenConnections(req, CP_TYPE_CLIENT, &vnc)
+		node.SetConnectionPairID(key, info.ID)
+		return node.ConnectionPairs[key].Anwser(info, node.ID)
+
 	}
-	req := proto.ConnectRequest{
-		Host:      info.Source,
-		Timestamp: info.Timestamp,
-	}
-	key := fmt.Sprintf("%s%d", req.Host, req.Timestamp)
-	node.OpenConnections(req, CP_TYPE_CLIENT, &ssh)
-	node.SetConnectionPairID(key, info.ID)
-	return node.ConnectionPairs[key].Anwser(info, node.ID)
+	return nil
 }
 
 func (node *Node) Offer(req proto.ConnectRequest) *ConnectInfo {
@@ -254,6 +288,10 @@ func (node *Node) Offer(req proto.ConnectRequest) *ConnectInfo {
 
 func (node *Node) Serve(ctx context.Context) {
 	logrus.Println("start sshx daemon")
+
+	go node.vncServer.Start()
+	go node.vncProx.Start()
+
 	for {
 		select {
 		case v := <-node.pull(ctx):
@@ -281,13 +319,20 @@ func (node *Node) Connect(ctx context.Context, sock net.Conn, target proto.Conne
 
 	ch := node.OpenConnections(target, CP_TYPE_SERVER, &sock)
 	info := node.Offer(target)
+
+	switch target.Type {
+	case conf.TYPE_START_VNC:
+		info.Type = CONNECTION_TYPE_VNC
+	case conf.TYPE_CONNECTION, conf.TYPE_START_PROXY:
+		info.Type = CONNECTION_TYPE_SSH
+	}
 	info.Timestamp = target.Timestamp
 	err := node.push(*info, target.Host)
 	if err != nil {
 		logrus.Error(err)
 	}
 	logrus.Debug("watting connection abord")
-	logrus.Debug("end of connection option", <-ch)
+	logrus.Debug("end of connection option ", <-ch)
 }
 
 func (node *Node) push(info ConnectInfo, target string) error {
