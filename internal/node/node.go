@@ -20,32 +20,6 @@ import (
 	"github.com/suutaku/sshx/internal/proto"
 )
 
-var (
-	FLAG_UNKNOWN   = 0
-	FLAG_CANDIDATE = 1
-	FLAG_ANWER     = 2
-	FLAG_OFFER     = 3
-
-	//Connection pair types
-	CP_TYPE_CLIENT = "_client"
-	CP_TYPE_SERVER = "_server"
-)
-
-const (
-	CONNECTION_TYPE_SSH = iota
-	CONNECTION_TYPE_VNC
-)
-
-type ConnectInfo struct {
-	Flag      int    `json:"flag"`
-	Source    string `json:"source"`
-	SDP       string `json:"sdp"`
-	Candidate []byte `json:"candidate"`
-	ID        int64  `json:"id"`
-	Timestamp int64  `json:"timestamp"`
-	Type      int    `json:"type"`
-}
-
 type sendWrap struct {
 	*webrtc.DataChannel
 }
@@ -135,12 +109,18 @@ func (node *Node) SignalCandidate(target proto.ConnectRequest, c *webrtc.ICECand
 	if node.ConnectionPairs[key] == nil {
 		return
 	}
-	info := ConnectInfo{
-		Flag:      FLAG_CANDIDATE,
+	info := conf.ConnectInfo{
+		Flag:      conf.FLAG_CANDIDATE,
 		Source:    node.ID,
 		Candidate: []byte(c.ToJSON().Candidate),
 		ID:        node.ConnectionPairs[key].ID,
 		Timestamp: target.Timestamp,
+	}
+	switch target.Type {
+	case conf.TYPE_CONNECTION:
+		info.Type = conf.CONNECTION_TYPE_SSH
+	case conf.TYPE_START_VNC:
+		info.Type = conf.CONNECTION_TYPE_VNC
 	}
 	node.push(info, target.Host)
 	logrus.Debug("Push candidate to ", target.Host, "!")
@@ -240,10 +220,11 @@ func (node *Node) Start(ctx context.Context) {
 	}()
 }
 
-func (node *Node) Anwser(info ConnectInfo) *ConnectInfo {
-
+func (node *Node) Anwser(info conf.ConnectInfo) *conf.ConnectInfo {
+	logrus.Printf("%#v\n", info)
 	switch info.Type {
-	case CONNECTION_TYPE_SSH:
+	case conf.CONNECTION_TYPE_SSH:
+		logrus.Info("new ssh connection request comes")
 		ssh, err := net.Dial("tcp", node.LocalSSHAddr)
 		if err != nil {
 			logrus.Error("ssh dial filed:", err)
@@ -253,12 +234,14 @@ func (node *Node) Anwser(info ConnectInfo) *ConnectInfo {
 		req := proto.ConnectRequest{
 			Host:      info.Source,
 			Timestamp: info.Timestamp,
+			Type:      conf.TYPE_CONNECTION,
 		}
 		key := fmt.Sprintf("%s%d", req.Host, req.Timestamp)
-		node.OpenConnections(req, CP_TYPE_CLIENT, &ssh)
+		node.OpenConnections(req, conf.CP_TYPE_CLIENT, &ssh)
 		node.SetConnectionPairID(key, info.ID)
 		return node.ConnectionPairs[key].Anwser(info, node.ID)
-	case CONNECTION_TYPE_VNC:
+	case conf.CONNECTION_TYPE_VNC:
+		logrus.Info("new vnc connection request comes")
 		vnc, err := net.Dial("tcp", fmt.Sprintf("%s:%d", node.VNCConf.TCP.Host, node.VNCConf.TCP.Port))
 		if err != nil {
 			logrus.Error("vnc dial filed:", err)
@@ -268,9 +251,10 @@ func (node *Node) Anwser(info ConnectInfo) *ConnectInfo {
 		req := proto.ConnectRequest{
 			Host:      info.Source,
 			Timestamp: info.Timestamp,
+			Type:      conf.TYPE_START_VNC,
 		}
 		key := fmt.Sprintf("%s%d", req.Host, req.Timestamp)
-		node.OpenConnections(req, CP_TYPE_CLIENT, &vnc)
+		node.OpenConnections(req, conf.CP_TYPE_CLIENT, &vnc)
 		node.SetConnectionPairID(key, info.ID)
 		return node.ConnectionPairs[key].Anwser(info, node.ID)
 
@@ -278,7 +262,7 @@ func (node *Node) Anwser(info ConnectInfo) *ConnectInfo {
 	return nil
 }
 
-func (node *Node) Offer(req proto.ConnectRequest) *ConnectInfo {
+func (node *Node) Offer(req proto.ConnectRequest) *conf.ConnectInfo {
 	key := fmt.Sprintf("%s%d", req.Host, req.Timestamp)
 	info := node.ConnectionPairs[key].Offer(node.ID)
 	info.Timestamp = req.Timestamp
@@ -296,16 +280,16 @@ func (node *Node) Serve(ctx context.Context) {
 		select {
 		case v := <-node.pull(ctx):
 			switch v.Flag {
-			case FLAG_OFFER:
+			case conf.FLAG_OFFER:
 				tmp := node.Anwser(v)
 				if tmp != nil {
 					node.push(*tmp, v.Source)
 				}
-			case FLAG_CANDIDATE:
+			case conf.FLAG_CANDIDATE:
 				node.AddCandidate(fmt.Sprintf("%s%d", v.Source, v.Timestamp), &webrtc.ICECandidateInit{Candidate: string(v.Candidate)}, v.ID)
-			case FLAG_ANWER:
+			case conf.FLAG_ANWER:
 				node.ConnectionPairs[fmt.Sprintf("%s%d", v.Source, v.Timestamp)].MakeConnection(v)
-			case FLAG_UNKNOWN:
+			case conf.FLAG_UNKNOWN:
 				logrus.Error("unknown connection info")
 			}
 		case <-ctx.Done():
@@ -317,16 +301,19 @@ func (node *Node) Serve(ctx context.Context) {
 
 func (node *Node) Connect(ctx context.Context, sock net.Conn, target proto.ConnectRequest) {
 
-	ch := node.OpenConnections(target, CP_TYPE_SERVER, &sock)
+	ch := node.OpenConnections(target, conf.CP_TYPE_SERVER, &sock)
 	info := node.Offer(target)
 
 	switch target.Type {
 	case conf.TYPE_START_VNC:
-		info.Type = CONNECTION_TYPE_VNC
+		logrus.Info("start a vnc connection")
+		info.Type = conf.CONNECTION_TYPE_VNC
 	case conf.TYPE_CONNECTION, conf.TYPE_START_PROXY:
-		info.Type = CONNECTION_TYPE_SSH
+		logrus.Info("start a ssh connection")
+		info.Type = conf.CONNECTION_TYPE_SSH
 	}
 	info.Timestamp = target.Timestamp
+	logrus.Println("%#v\n", info)
 	err := node.push(*info, target.Host)
 	if err != nil {
 		logrus.Error(err)
@@ -335,7 +322,7 @@ func (node *Node) Connect(ctx context.Context, sock net.Conn, target proto.Conne
 	logrus.Debug("end of connection option ", <-ch)
 }
 
-func (node *Node) push(info ConnectInfo, target string) error {
+func (node *Node) push(info conf.ConnectInfo, target string) error {
 	buf := bytes.NewBuffer(nil)
 	if err := json.NewEncoder(buf).Encode(info); err != nil {
 		return err
@@ -355,8 +342,8 @@ func (node *Node) push(info ConnectInfo, target string) error {
 	return nil
 }
 
-func (node *Node) pull(ctx context.Context) <-chan ConnectInfo {
-	ch := make(chan ConnectInfo, 1)
+func (node *Node) pull(ctx context.Context) <-chan conf.ConnectInfo {
+	ch := make(chan conf.ConnectInfo, 1)
 	for {
 		client := http.Client{
 			Timeout: 30 * time.Second,
@@ -370,7 +357,7 @@ func (node *Node) pull(ctx context.Context) <-chan ConnectInfo {
 			continue
 		}
 		defer res.Body.Close()
-		var info ConnectInfo
+		var info conf.ConnectInfo
 		if err = json.NewDecoder(res.Body).Decode(&info); err != nil {
 			if err == io.EOF {
 				continue

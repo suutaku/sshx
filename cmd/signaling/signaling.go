@@ -10,11 +10,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/suutaku/sshx/internal/node"
+	"github.com/suutaku/sshx/internal/conf"
 )
 
 var (
-	res = map[string]chan node.ConnectInfo{}
+	res = map[string]chan conf.ConnectInfo{}
 	mu  sync.RWMutex
 )
 
@@ -34,7 +34,7 @@ func main() {
 
 func pushData() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var info node.ConnectInfo
+		var info conf.ConnectInfo
 		if err := json.NewDecoder(r.Body).Decode(&info); err != nil {
 			log.Print("json decode failed:", err)
 			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
@@ -43,7 +43,7 @@ func pushData() http.Handler {
 		mu.Lock()
 		if res[r.URL.Path] == nil {
 			log.Println("crete resource for ", r.URL.Path)
-			res[r.URL.Path] = make(chan node.ConnectInfo, 64)
+			res[r.URL.Path] = make(chan conf.ConnectInfo, 64)
 		}
 		mu.Unlock()
 
@@ -57,7 +57,7 @@ func pullData() http.Handler {
 		mu.Lock()
 		if res[r.URL.Path] == nil {
 			log.Println("crete resource for ", r.URL.Path, " 2")
-			res[r.URL.Path] = make(chan node.ConnectInfo, 64)
+			res[r.URL.Path] = make(chan conf.ConnectInfo, 64)
 		}
 		mu.Unlock()
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)

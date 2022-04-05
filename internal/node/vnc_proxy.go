@@ -27,10 +27,6 @@ func NewVNCProxy(node *Node) *VNCProxy {
 	}
 }
 
-type ContextKey struct {
-	key string
-}
-
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
@@ -55,6 +51,7 @@ func (vp *VNCProxy) Start() {
 		}
 
 		vp.node.Connect(context.TODO(), conn.UnderlyingConn(), req)
+		select {}
 		logrus.Info("ws done", r.URL)
 	})
 

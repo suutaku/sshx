@@ -8,6 +8,7 @@ import (
 
 	"github.com/pion/webrtc/v3"
 	"github.com/sirupsen/logrus"
+	"github.com/suutaku/sshx/internal/conf"
 )
 
 type ConnectionPair struct {
@@ -109,7 +110,7 @@ func NewConnectionPair(cnf webrtc.Configuration, sc *net.Conn, cType string) *Co
 	return &cp
 }
 
-func (cp *ConnectionPair) Anwser(v ConnectInfo, id string) *ConnectInfo {
+func (cp *ConnectionPair) Anwser(v conf.ConnectInfo, id string) *conf.ConnectInfo {
 	if err := cp.PeerConnection.SetRemoteDescription(webrtc.SessionDescription{
 		Type: webrtc.SDPTypeOffer,
 		SDP:  v.SDP,
@@ -130,8 +131,8 @@ func (cp *ConnectionPair) Anwser(v ConnectInfo, id string) *ConnectInfo {
 		cp.Close()
 		return nil
 	}
-	r := ConnectInfo{
-		Flag:      FLAG_ANWER,
+	r := conf.ConnectInfo{
+		Flag:      conf.FLAG_ANWER,
 		SDP:       answer.SDP,
 		Source:    id,
 		Timestamp: v.Timestamp,
@@ -139,7 +140,7 @@ func (cp *ConnectionPair) Anwser(v ConnectInfo, id string) *ConnectInfo {
 	return &r
 }
 
-func (cp *ConnectionPair) Offer(id string) *ConnectInfo {
+func (cp *ConnectionPair) Offer(id string) *conf.ConnectInfo {
 
 	offer, err := cp.PeerConnection.CreateOffer(nil)
 	if err != nil {
@@ -152,15 +153,15 @@ func (cp *ConnectionPair) Offer(id string) *ConnectInfo {
 		cp.Close()
 		return nil
 	}
-	info := ConnectInfo{
-		Flag:   FLAG_OFFER,
+	info := conf.ConnectInfo{
+		Flag:   conf.FLAG_OFFER,
 		Source: id,
 		SDP:    offer.SDP,
 	}
 	return &info
 }
 
-func (cp *ConnectionPair) MakeConnection(info ConnectInfo) {
+func (cp *ConnectionPair) MakeConnection(info conf.ConnectInfo) {
 	if err := cp.PeerConnection.SetRemoteDescription(webrtc.SessionDescription{
 		Type: webrtc.SDPTypeAnswer,
 		SDP:  info.SDP,

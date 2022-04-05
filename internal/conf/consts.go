@@ -9,3 +9,19 @@ const (
 	TYPE_START_VNC
 	TYPE_STOP_VNC
 )
+
+var (
+	FLAG_UNKNOWN   = 0
+	FLAG_CANDIDATE = 1
+	FLAG_ANWER     = 2
+	FLAG_OFFER     = 3
+
+	//Connection pair types
+	CP_TYPE_CLIENT = "_client"
+	CP_TYPE_SERVER = "_server"
+)
+
+const (
+	CONNECTION_TYPE_SSH = iota
+	CONNECTION_TYPE_VNC
+)
