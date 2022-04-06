@@ -23,6 +23,7 @@ type Configure struct {
 	SignalingServerAddr string
 	RTCConf             webrtc.Configuration
 	VNCConf             config.Configure
+	VNCStaticPath       string
 }
 
 type ConfManager struct {
@@ -50,7 +51,8 @@ var defaultConfig = Configure{
 			},
 		},
 	},
-	VNCConf: config.DefaultConfigure,
+	VNCConf:       config.DefaultConfigure,
+	VNCStaticPath: "/etc/sshx/noVNC",
 }
 
 func ClearKnownHosts(subStr string) {

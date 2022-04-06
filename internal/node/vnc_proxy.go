@@ -49,9 +49,7 @@ func (vp *VNCProxy) Start() {
 			logrus.Println(err)
 			return
 		}
-
-		vp.node.Connect(context.TODO(), conn.UnderlyingConn(), req)
-		select {}
+		go vp.node.Connect(context.TODO(), conn.UnderlyingConn(), req)
 		logrus.Info("ws done", r.URL)
 	})
 

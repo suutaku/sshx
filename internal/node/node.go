@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v3"
 	"github.com/sirupsen/logrus"
 	"github.com/suutaku/go-vnc/pkg/vnc"
@@ -67,13 +68,13 @@ func (node *Node) CloseConnections(key string) {
 	}
 }
 
-func (node *Node) OpenConnections(target proto.ConnectRequest, cType string, sc *net.Conn) chan int {
+func (node *Node) OpenConnections(target proto.ConnectRequest, cType string, sc net.Conn) chan int {
 	key := fmt.Sprintf("%s%d", target.Host, target.Timestamp)
 	logrus.Debug("key ", key)
 	node.connectionMux.Lock()
 	logrus.Debug("query lock ", key)
 	defer node.connectionMux.Unlock()
-	node.ConnectionPairs[key] = NewConnectionPair(node.RTCConf, sc, cType)
+	node.ConnectionPairs[key] = NewConnectionPair(node.RTCConf, &sc, cType)
 	node.ConnectionPairs[key].PeerConnection.OnICECandidate(func(c *webrtc.ICECandidate) {
 		node.SignalCandidate(target, c)
 	})
@@ -237,12 +238,13 @@ func (node *Node) Anwser(info conf.ConnectInfo) *conf.ConnectInfo {
 			Type:      conf.TYPE_CONNECTION,
 		}
 		key := fmt.Sprintf("%s%d", req.Host, req.Timestamp)
-		node.OpenConnections(req, conf.CP_TYPE_CLIENT, &ssh)
+		node.OpenConnections(req, conf.CP_TYPE_CLIENT, ssh)
 		node.SetConnectionPairID(key, info.ID)
 		return node.ConnectionPairs[key].Anwser(info, node.ID)
 	case conf.CONNECTION_TYPE_VNC:
 		logrus.Info("new vnc connection request comes")
-		vnc, err := net.Dial("tcp", fmt.Sprintf("%s:%d", node.VNCConf.TCP.Host, node.VNCConf.TCP.Port))
+		vnc, _, err := websocket.DefaultDialer.Dial(fmt.Sprintf("ws://%s:%d", node.VNCConf.Websockify.Host, node.VNCConf.Websockify.Port), nil)
+		// vnc, err := net.Dial("tcp", )
 		if err != nil {
 			logrus.Error("vnc dial filed:", err)
 			node.CloseConnections(info.Source)
@@ -254,7 +256,7 @@ func (node *Node) Anwser(info conf.ConnectInfo) *conf.ConnectInfo {
 			Type:      conf.TYPE_START_VNC,
 		}
 		key := fmt.Sprintf("%s%d", req.Host, req.Timestamp)
-		node.OpenConnections(req, conf.CP_TYPE_CLIENT, &vnc)
+		node.OpenConnections(req, conf.CP_TYPE_CLIENT, vnc.UnderlyingConn())
 		node.SetConnectionPairID(key, info.ID)
 		return node.ConnectionPairs[key].Anwser(info, node.ID)
 
@@ -288,6 +290,7 @@ func (node *Node) Serve(ctx context.Context) {
 			case conf.FLAG_CANDIDATE:
 				node.AddCandidate(fmt.Sprintf("%s%d", v.Source, v.Timestamp), &webrtc.ICECandidateInit{Candidate: string(v.Candidate)}, v.ID)
 			case conf.FLAG_ANWER:
+				logrus.Printf("anwser comes: %#v\n", v)
 				node.ConnectionPairs[fmt.Sprintf("%s%d", v.Source, v.Timestamp)].MakeConnection(v)
 			case conf.FLAG_UNKNOWN:
 				logrus.Error("unknown connection info")
@@ -301,7 +304,7 @@ func (node *Node) Serve(ctx context.Context) {
 
 func (node *Node) Connect(ctx context.Context, sock net.Conn, target proto.ConnectRequest) {
 
-	ch := node.OpenConnections(target, conf.CP_TYPE_SERVER, &sock)
+	ch := node.OpenConnections(target, conf.CP_TYPE_SERVER, sock)
 	info := node.Offer(target)
 
 	switch target.Type {

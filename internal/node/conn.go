@@ -60,8 +60,11 @@ func NewConnectionPair(cnf webrtc.Configuration, sc *net.Conn, cType string) *Co
 		}
 		dc.OnOpen(func() {
 			cp.Exit <- 0 // exit client pull loop
-			logrus.Debug("wrap to ssh dc")
-			io.Copy(&sendWrap{dc}, *(cp.LocalSSHConnection))
+			logrus.Debug("wrap to ssh dc server")
+			_, err := io.Copy(&sendWrap{dc}, *(cp.LocalSSHConnection))
+			if err != nil {
+				logrus.Error(err)
+			}
 			cp.Close()
 		})
 		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
@@ -88,7 +91,7 @@ func NewConnectionPair(cnf webrtc.Configuration, sc *net.Conn, cType string) *Co
 		cp.PeerConnection.OnDataChannel(func(dc *webrtc.DataChannel) {
 			//dc.Lock()
 			dc.OnOpen(func() {
-				logrus.Debug("wrap to ssh dc")
+				logrus.Debug("wrap to ssh dc client")
 				io.Copy(&sendWrap{dc}, *(cp.LocalSSHConnection))
 				cp.Close()
 			})
