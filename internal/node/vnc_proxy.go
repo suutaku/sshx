@@ -30,6 +30,9 @@ func NewVNCProxy(node *Node) *VNCProxy {
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
 }
 
 func (vp *VNCProxy) Start() {
@@ -38,7 +41,6 @@ func (vp *VNCProxy) Start() {
 	r.PathPrefix("/").Handler(s)
 	http.Handle("/", r)
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		logrus.Info("ws connection comes", r.URL)
 		req, err := vp.ParseConnectionRequest(r)
 		if err != nil {
 			logrus.Error(err)
@@ -46,11 +48,10 @@ func (vp *VNCProxy) Start() {
 		}
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
-			logrus.Println(err)
+			logrus.Error(err)
 			return
 		}
-		go vp.node.Connect(context.TODO(), conn.UnderlyingConn(), req)
-		logrus.Info("ws done", r.URL)
+		vp.node.Connect(context.TODO(), conn.UnderlyingConn(), req)
 	})
 
 	logrus.Info("start vnc proxy at: ", vp.proxyAddr)

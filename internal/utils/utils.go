@@ -22,15 +22,15 @@ func FixDNSAlias() {
 	osname := runtime.GOOS
 	switch osname {
 	case "windows":
-		logrus.Println("Platform: Windows")
+		logrus.Info("Platform: Windows")
 	case "darwin":
-		logrus.Println("Platform: MAC OSX")
+		logrus.Info("Platform: MAC OSX")
 		confPath = macHostFilePath
 	case "linux":
-		logrus.Println("Platform: Linux")
+		logrus.Info("Platform: Linux")
 		confPath = linuxHostFilePath
 	default:
-		logrus.Printf("Platform %s was not supported yet.\n", osname)
+		logrus.Infof("Platform %s was not supported yet.\n", osname)
 	}
 	file, err := os.OpenFile(confPath, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {

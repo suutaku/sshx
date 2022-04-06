@@ -263,7 +263,7 @@ func cmdCopy(cmd *cli.Cmd) {
 }
 
 func main() {
-	logrus.SetLevel(logrus.DebugLevel)
+	logrus.SetLevel(logrus.InfoLevel)
 	home := os.Getenv("SSH_XHOME")
 	if home != "" {
 		path = home

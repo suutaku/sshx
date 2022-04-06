@@ -70,9 +70,7 @@ func (node *Node) CloseConnections(key string) {
 
 func (node *Node) OpenConnections(target proto.ConnectRequest, cType string, sc net.Conn) chan int {
 	key := fmt.Sprintf("%s%d", target.Host, target.Timestamp)
-	logrus.Debug("key ", key)
 	node.connectionMux.Lock()
-	logrus.Debug("query lock ", key)
 	defer node.connectionMux.Unlock()
 	node.ConnectionPairs[key] = NewConnectionPair(node.RTCConf, &sc, cType)
 	node.ConnectionPairs[key].PeerConnection.OnICECandidate(func(c *webrtc.ICECandidate) {
@@ -124,8 +122,6 @@ func (node *Node) SignalCandidate(target proto.ConnectRequest, c *webrtc.ICECand
 		info.Type = conf.CONNECTION_TYPE_VNC
 	}
 	node.push(info, target.Host)
-	logrus.Debug("Push candidate to ", target.Host, "!")
-
 }
 
 func (node *Node) Start(ctx context.Context) {
@@ -170,10 +166,8 @@ func (node *Node) Start(ctx context.Context) {
 				}
 				switch req.Type {
 				case conf.TYPE_CONNECTION:
-					logrus.Debug("make a connection to ", req.Host)
 					go node.Connect(ctx, sock, req)
 				case conf.TYPE_START_PROXY:
-					logrus.Debug("start a proxy to ", req.Host)
 					conf.ClearKnownHosts("127.0.0.1")
 					subCtx, cancl := context.WithCancel(context.Background())
 					go node.Proxy(subCtx, req)
@@ -196,7 +190,6 @@ func (node *Node) Start(ctx context.Context) {
 					sock.Close()
 				case conf.TYPE_STOP_PROXY:
 					list := node.pm.GetConnectionKeys(req.Host)
-					logrus.Debug("stop proxy to %v", list)
 					for _, v := range list {
 						node.CloseConnections(v)
 					}
@@ -209,11 +202,6 @@ func (node *Node) Start(ctx context.Context) {
 						logrus.Error(err)
 					}
 					sock.Write(b)
-				case conf.TYPE_START_VNC:
-					logrus.Debug("start vnc request come")
-
-				case conf.TYPE_STOP_VNC:
-					logrus.Debug("stop vnc request come")
 
 				}
 			}
@@ -222,10 +210,8 @@ func (node *Node) Start(ctx context.Context) {
 }
 
 func (node *Node) Anwser(info conf.ConnectInfo) *conf.ConnectInfo {
-	logrus.Printf("%#v\n", info)
 	switch info.Type {
 	case conf.CONNECTION_TYPE_SSH:
-		logrus.Info("new ssh connection request comes")
 		ssh, err := net.Dial("tcp", node.LocalSSHAddr)
 		if err != nil {
 			logrus.Error("ssh dial filed:", err)
@@ -242,7 +228,6 @@ func (node *Node) Anwser(info conf.ConnectInfo) *conf.ConnectInfo {
 		node.SetConnectionPairID(key, info.ID)
 		return node.ConnectionPairs[key].Anwser(info, node.ID)
 	case conf.CONNECTION_TYPE_VNC:
-		logrus.Info("new vnc connection request comes")
 		vnc, _, err := websocket.DefaultDialer.Dial(fmt.Sprintf("ws://%s:%d", node.VNCConf.Websockify.Host, node.VNCConf.Websockify.Port), nil)
 		// vnc, err := net.Dial("tcp", )
 		if err != nil {
@@ -273,7 +258,7 @@ func (node *Node) Offer(req proto.ConnectRequest) *conf.ConnectInfo {
 }
 
 func (node *Node) Serve(ctx context.Context) {
-	logrus.Println("start sshx daemon")
+	logrus.Info("start sshx daemon")
 
 	go node.vncServer.Start()
 	go node.vncProx.Start()
@@ -290,13 +275,12 @@ func (node *Node) Serve(ctx context.Context) {
 			case conf.FLAG_CANDIDATE:
 				node.AddCandidate(fmt.Sprintf("%s%d", v.Source, v.Timestamp), &webrtc.ICECandidateInit{Candidate: string(v.Candidate)}, v.ID)
 			case conf.FLAG_ANWER:
-				logrus.Printf("anwser comes: %#v\n", v)
 				node.ConnectionPairs[fmt.Sprintf("%s%d", v.Source, v.Timestamp)].MakeConnection(v)
 			case conf.FLAG_UNKNOWN:
 				logrus.Error("unknown connection info")
 			}
 		case <-ctx.Done():
-			logrus.Println("stop sshx daemon")
+			logrus.Info("stop sshx daemon")
 
 		}
 	}
@@ -309,14 +293,11 @@ func (node *Node) Connect(ctx context.Context, sock net.Conn, target proto.Conne
 
 	switch target.Type {
 	case conf.TYPE_START_VNC:
-		logrus.Info("start a vnc connection")
 		info.Type = conf.CONNECTION_TYPE_VNC
 	case conf.TYPE_CONNECTION, conf.TYPE_START_PROXY:
-		logrus.Info("start a ssh connection")
 		info.Type = conf.CONNECTION_TYPE_SSH
 	}
 	info.Timestamp = target.Timestamp
-	logrus.Println("%#v\n", info)
 	err := node.push(*info, target.Host)
 	if err != nil {
 		logrus.Error(err)
@@ -371,7 +352,6 @@ func (node *Node) pull(ctx context.Context) <-chan conf.ConnectInfo {
 			continue
 		}
 		ch <- info
-		logrus.Debug("pull success")
 		return ch
 	}
 }

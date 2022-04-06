@@ -89,7 +89,6 @@ func NewConfManager(path string) *ConfManager {
 	vp.AddConfigPath(path)
 	vp.WatchConfig()
 	vp.OnConfigChange(func(e fsnotify.Event) {
-		logrus.Println("Config file changed:", e.Name)
 		err := vp.Unmarshal(&tmp)
 		if err != nil {
 			logrus.Error(err)
@@ -144,6 +143,6 @@ func (cm *ConfManager) Set(key, value string) {
 
 func (cm *ConfManager) Show() {
 	bs, _ := json.MarshalIndent(cm.Conf, "", "  ")
-	logrus.Println("read configure file at: ", cm.Path+"/.sshx_config.json")
-	logrus.Println(string(bs))
+	logrus.Info("read configure file at: ", cm.Path+"/.sshx_config.json")
+	logrus.Info(string(bs))
 }

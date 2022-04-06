@@ -52,7 +52,6 @@ func (dal *Dailer) OpenTerminal(req proto.ConnectRequest, conf ssh.ClientConfig)
 	if err != nil {
 		return fmt.Errorf("terminal make raw: %s", err)
 	}
-	logrus.Debug("set terminal state")
 	w, h, err := terminal.GetSize(dal.fd)
 	if err != nil {
 		return fmt.Errorf("terminal get size: %s", err)

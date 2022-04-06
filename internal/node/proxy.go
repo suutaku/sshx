@@ -36,7 +36,6 @@ func (pm *ProxyManager) Validation(info *ProxyRepo) error {
 }
 
 func (pm *ProxyManager) AddProxy(info *ProxyRepo) error {
-	logrus.Debug("add proxy for ", info.Host)
 	err := pm.Validation(info)
 	if err != nil {
 		return err
@@ -53,7 +52,6 @@ func (pm *ProxyManager) RemoveProxy(host string) {
 	if pm.repo[host] == nil {
 		return
 	}
-	logrus.Debug("cancel proxy listening")
 	(*pm.repo[host].cancel)()
 	delete(pm.repo, host)
 }
@@ -90,10 +88,10 @@ func (node *Node) Proxy(ctx context.Context, req proto.ConnectRequest) {
 	tmpListenAddr := fmt.Sprintf(":%d", req.ProxyPort)
 	l, err := net.Listen("tcp", tmpListenAddr)
 	if err != nil {
-		fmt.Println(err)
+		logrus.Error(err)
 		return
 	}
-	logrus.Println("Proxy listen on:", tmpListenAddr)
+	logrus.Info("Proxy listen on:", tmpListenAddr)
 	runing := true
 	go func(runing *bool) {
 		for *runing {
@@ -103,12 +101,11 @@ func (node *Node) Proxy(ctx context.Context, req proto.ConnectRequest) {
 			}
 			go node.Connect(ctx, sock, req)
 		}
-		logrus.Println("proxy accept loop canceled")
 	}(&runing)
 
 	<-ctx.Done()
 	runing = false
-	logrus.Println("proxy canceled")
+	logrus.Info("proxy canceled")
 	l.Close()
 
 }

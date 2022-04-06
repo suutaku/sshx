@@ -164,6 +164,15 @@
                         <img alt="" src="app/images/settings.svg"> Settings
                     </li>
                     <li>
+                        <li>
+                            <label><input id="noVNC_setting_encrypt" type="checkbox"> Encrypt</label>
+                        </li>
+                        <li>
+                            <label for="noVNC_setting_device_id">DeviceID:</label>
+                            <input id="noVNC_setting_device_id" type="text" value="wz_ubuntu">
+                        </li>
+                    </li>
+                    <li>
                         <label><input id="noVNC_setting_shared" type="checkbox"> Shared Mode</label>
                     </li>
                     <li>
@@ -198,30 +207,7 @@
                                 <label for="noVNC_setting_repeaterID">Repeater ID:</label>
                                 <input id="noVNC_setting_repeaterID" type="text" value="">
                             </li>
-                            <li>
-                                <div class="noVNC_expander">WebSocket</div>
-                                <div><ul>
-                                    <li>
-                                        <label><input id="noVNC_setting_encrypt" type="checkbox"> Encrypt</label>
-                                    </li>
-                                    <!-- <li>
-                                        <label for="noVNC_setting_host">Host:</label>
-                                        <input id="noVNC_setting_host">
-                                    </li>
-                                    <li>
-                                        <label for="noVNC_setting_port">Port:</label>
-                                        <input id="noVNC_setting_port" type="number">
-                                    </li>
-                                    <li>
-                                        <label for="noVNC_setting_path">Path:</label>
-                                        <input id="noVNC_setting_path" type="text" value="websockify">
-                                    </li> -->
-                                    <li>
-                                        <label for="noVNC_setting_device_id">DeviceID:</label>
-                                        <input id="noVNC_setting_device_id" type="text" value="wz_ubuntu">
-                                    </li>
-                                </ul></div>
-                            </li>
+                           
                             <li><hr></li>
                             <li>
                                 <label><input id="noVNC_setting_reconnect" type="checkbox"> Automatic Reconnect</label>

@@ -21,10 +21,8 @@ func (dal *Dailer) Transfer(filePath, remotePath string, upload bool, scpClient 
 	var err error
 
 	if upload {
-		logrus.Debug("start upload: ", filePath, " to ", scpClient.Host, remotePath)
 		file, err = os.Open(filePath)
 	} else {
-		logrus.Debug("start download: ", filePath, " to ", scpClient.Host, remotePath)
 		file, err = os.Create(filePath)
 	}
 	if err != nil {
@@ -68,7 +66,7 @@ func (dal *Dailer) Copy(localPath, remotePath string, req proto.ConnectRequest, 
 				return err
 			}
 			for _, f := range files {
-				logrus.Println(f.Name())
+				logrus.Infof(f.Name())
 				return dal.Transfer(f.Name(), remotePath, upload, &scpClient, f.Mode())
 			}
 		} else {
