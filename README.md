@@ -29,6 +29,10 @@ Server is not stable, just for testing. **Please use your own signaling server o
 
 ## Install
 
+### Requirements
+
+`https://github.com/go-vgo/robotgo#Requirements`
+
 ### Signaling server
 ```bash
 go get -u github.com/suutaku/sshx/cmd/signaling
@@ -38,6 +42,21 @@ go get -u github.com/suutaku/sshx/cmd/signaling
 ```bash
 go get -u github.com/suutaku/sshx/cmd/sshx
 ```
+
+### Install as a system daemon
+
+#### Mac OSX & Linux
+
+```bash
+git clone https://github.com/suutaku/sshx
+cd sshx
+sudo ./build.sh install ## for sshx
+sudo ./build.sh install signaling ## both sshx and signaling server
+```
+
+### Windows
+I don't have Windows device so i don't know how to create and test install scripts, maybe some can write a script for windows user.
+
 
 ## Configuration
 Configure file will created at first time at path: `/etc/sshx/.sshx_config.json`.
@@ -150,6 +169,10 @@ Commands:
 Run 'sshx proxy COMMAND --help' for more information on a command.
 ```
 
+VNC 
+
+sshx contained a `noVNC` client which write with Javascript. To use client just access `http://vnc.sshx.wz` (not working with VPN environment) or `http://127.0.0.1` and input device ID in setting menu.
+
 Features
 
 - [x] Connect devices directly like ssh client does
@@ -161,10 +184,10 @@ Features
 - [x] Custom signaling server
 - [x] Multiple connection with one remote device
 - [x] A simple signaling server implementation
-- [x] Pure go
+- [ ] Pure go (due the `github.com/go-vgo/robotgo`)
 - [x] Lunux system service supporting
 - [x] VS Code SSH remote suportting (use proxy way due the VS Code not an open source project)
-- [ ] VNC supporting
+- [x] VNC supporting (both vnc server and client)
 
 
 

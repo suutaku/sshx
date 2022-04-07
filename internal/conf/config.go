@@ -119,7 +119,7 @@ func NewConfManager(path string) *ConfManager {
 		logrus.Error(err)
 		os.Exit(1)
 	}
-	//logrus.Println(tmp)
+
 	ClearKnownHosts(tmp.LocalListenAddr)
 	return &ConfManager{
 		Conf:  &tmp,

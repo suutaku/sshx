@@ -165,6 +165,9 @@ func (cp *ConnectionPair) Offer(id string) *conf.ConnectInfo {
 }
 
 func (cp *ConnectionPair) MakeConnection(info conf.ConnectInfo) {
+	if cp.PeerConnection == nil {
+		return
+	}
 	if err := cp.PeerConnection.SetRemoteDescription(webrtc.SessionDescription{
 		Type: webrtc.SDPTypeAnswer,
 		SDP:  info.SDP,
