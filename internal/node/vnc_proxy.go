@@ -21,8 +21,8 @@ type VNCProxy struct {
 
 func NewVNCProxy(node *Node) *VNCProxy {
 	return &VNCProxy{
-		h5ClientStaticPath: "/Users/john/Desktop/work/sshx/http",
-		proxyAddr:          "127.0.0.1:80",
+		h5ClientStaticPath: node.VNCStaticPath,
+		proxyAddr:          node.GuacListenAddr,
 		node:               node,
 	}
 }
