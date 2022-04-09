@@ -2,7 +2,6 @@ import './web3.min.js';
 
 
 const ethereumButton = document.getElementById('noVNC_metamask_button');
-console.log(ethereumButton)
 ethereumButton.addEventListener('click', () => {
   getAccount();
 });
