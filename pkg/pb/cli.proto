@@ -41,3 +41,16 @@ message ListDestroyReqeust {
 message ListDestroyResponse {
   repeated ProxyInfo List = 1;
 }
+
+message ConfigData {
+  string Key = 1;
+  string Value = 2;
+}
+
+message SetConfigRequest {
+  repeated ConfigData Data = 1;
+}
+
+message SetConfigResponse {
+  string Error = 1;
+}

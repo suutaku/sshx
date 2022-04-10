@@ -107,7 +107,7 @@ func (dal *Dailer) Connect(req proto.ConnectRequest, config ssh.ClientConfig) er
 		b, _ := req.Marshal()
 		conn.Write(b)
 		conn.Read(b)
-		if req.Type == conf.TYPE_START_PROXY {
+		if req.Type == conf.OPT_TYPE_START_PROXY {
 			break
 		}
 		c, chans, reqs, err := ssh.NewClientConn(conn, "", &config)
@@ -129,7 +129,7 @@ func (dal *Dailer) Connect(req proto.ConnectRequest, config ssh.ClientConfig) er
 			}
 		}
 	}
-	if req.Type != conf.TYPE_START_PROXY {
+	if req.Type != conf.OPT_TYPE_START_PROXY {
 		if dal.client == nil {
 			return fmt.Errorf("connection faild")
 		}
@@ -159,7 +159,7 @@ func (dal *Dailer) Close(req proto.ConnectRequest) {
 	if err != nil {
 		logrus.Error(err)
 	}
-	req.Type = conf.TYPE_CLOSE_CONNECTION
+	req.Type = conf.OPT_TYPE_CLOSE_CONNECTION
 	b, _ := req.Marshal()
 	conn.Write(b)
 	conn.Read(b)
@@ -172,7 +172,7 @@ func (dal *Dailer) CloseProxy(id string) {
 		logrus.Error(err)
 	}
 	req := proto.ConnectRequest{
-		Type: conf.TYPE_STOP_PROXY,
+		Type: conf.OPT_TYPE_STOP_PROXY,
 		Host: id,
 	}
 	b, _ := req.Marshal()
@@ -188,7 +188,7 @@ func (dal *Dailer) GetProxyList(host string) (ret proto.ListDestroyResponse) {
 	}
 	defer conn.Close()
 	req := proto.ConnectRequest{
-		Type: conf.TYPE_PROXY_LIST,
+		Type: conf.OPT_TYPE_PROXY_LIST,
 		Host: host,
 	}
 	buf := make([]byte, 1024)

@@ -140,7 +140,7 @@ func cmdStartProxy(cmd *cli.Cmd) {
 			Host:      address,
 			Port:      int32(port),
 			X11:       x11,
-			Type:      conf.TYPE_START_PROXY,
+			Type:      conf.OPT_TYPE_START_PROXY,
 			Timestamp: time.Now().Unix(),
 			ProxyPort: int32(*proxyPort),
 		}
@@ -197,7 +197,7 @@ func cmdConnect(cmd *cli.Cmd) {
 			Host:      address,
 			Port:      int32(port),
 			X11:       x11,
-			Type:      conf.TYPE_CONNECTION,
+			Type:      conf.OPT_TYPE_CONNECTION,
 			Timestamp: time.Now().Unix(),
 		}
 		dal.OpenTerminal(req, sshConfig)
@@ -211,7 +211,7 @@ func cmdDaemon(cmd *cli.Cmd) {
 		signal.Notify(sig, syscall.SIGINT)
 		ctx, cancel := context.WithCancel(context.Background())
 		cm := conf.NewConfManager(path)
-		node := node.NewNode(cm.Conf)
+		node := node.NewNode(cm)
 		node.Start(ctx)
 		<-sig
 		cancel()
@@ -249,7 +249,7 @@ func cmdCopy(cmd *cli.Cmd) {
 		req := proto.ConnectRequest{
 			Host:      host,
 			Port:      int32(port),
-			Type:      conf.TYPE_CONNECTION,
+			Type:      conf.OPT_TYPE_CONNECTION,
 			X11:       false,
 			Timestamp: time.Now().Unix(),
 		}

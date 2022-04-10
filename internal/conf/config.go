@@ -24,6 +24,7 @@ type Configure struct {
 	RTCConf             webrtc.Configuration
 	VNCConf             config.Configure
 	VNCStaticPath       string
+	ETHAddr             string
 }
 
 type ConfManager struct {
@@ -92,8 +93,9 @@ func NewConfManager(path string) *ConfManager {
 		err := vp.Unmarshal(&tmp)
 		if err != nil {
 			logrus.Error(err)
-			os.Exit(1)
+			return
 		}
+		logrus.Infof("update configure file\n %#v\n", tmp)
 		ClearKnownHosts(tmp.LocalListenAddr)
 	})
 	err := vp.ReadInConfig() // Find and read the config file
@@ -102,7 +104,7 @@ func NewConfManager(path string) *ConfManager {
 			// Config file not found; ignore error if desired
 			bs, _ := json.MarshalIndent(defaultConfig, "", "  ")
 			vp.ReadConfig(bytes.NewBuffer(bs))
-			logrus.Print("Write config ...\n", string(bs))
+			logrus.Print("Write config at 1 ...\n", string(bs))
 			err = vp.WriteConfigAs(path + "/.sshx_config.json")
 			if err != nil {
 				logrus.Error(err)
@@ -129,16 +131,21 @@ func NewConfManager(path string) *ConfManager {
 }
 
 func (cm *ConfManager) Set(key, value string) {
+	logrus.Info("key/value", key, value)
 	ClearKnownHosts(cm.Conf.LocalListenAddr)
 	cm.Viper.Set(key, value)
-	logrus.Print("Write config ...")
+	logrus.Infof("%#v\n", cm.Conf)
 	err := cm.Viper.Unmarshal(cm.Conf)
 	if err != nil {
 		logrus.Error(err)
-		os.Exit(1)
+		return
 	}
-	cm.Viper.WriteConfigAs(cm.Path + "/.sshx_config.json")
-
+	err = cm.Viper.WriteConfig()
+	if err != nil {
+		logrus.Error(err)
+		return
+	}
+	logrus.Print("Write config ...")
 }
 
 func (cm *ConfManager) Show() {

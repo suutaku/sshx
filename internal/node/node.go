@@ -31,7 +31,7 @@ func (s *sendWrap) Write(b []byte) (int, error) {
 }
 
 type Node struct {
-	*conf.Configure
+	ConfManager     *conf.ConfManager
 	ConnectionPairs map[string]*ConnectionPair
 	connectionMux   sync.Mutex
 	PendingCadidate map[string][]*webrtc.ICECandidateInit
@@ -41,13 +41,13 @@ type Node struct {
 	vncProx         *VNCProxy
 }
 
-func NewNode(cnf *conf.Configure) *Node {
+func NewNode(cnf *conf.ConfManager) *Node {
 	ret := Node{
-		Configure:       cnf,
+		ConfManager:     cnf,
 		ConnectionPairs: make(map[string]*ConnectionPair),
 		PendingCadidate: make(map[string][]*webrtc.ICECandidateInit),
 		pm:              NewProxyManager(),
-		vncServer:       vnc.NewVNC(context.TODO(), cnf.VNCConf),
+		vncServer:       vnc.NewVNC(context.TODO(), cnf.Conf.VNCConf),
 	}
 	ret.vncProx = NewVNCProxy(&ret)
 	return &ret
@@ -72,7 +72,7 @@ func (node *Node) OpenConnections(target proto.ConnectRequest, cType string, sc 
 	key := fmt.Sprintf("%s%d", target.Host, target.Timestamp)
 	node.connectionMux.Lock()
 	defer node.connectionMux.Unlock()
-	node.ConnectionPairs[key] = NewConnectionPair(node.RTCConf, &sc, cType)
+	node.ConnectionPairs[key] = NewConnectionPair(node.ConfManager.Conf.RTCConf, &sc, cType)
 	node.ConnectionPairs[key].PeerConnection.OnICECandidate(func(c *webrtc.ICECandidate) {
 		node.SignalCandidate(target, c)
 	})
@@ -110,15 +110,15 @@ func (node *Node) SignalCandidate(target proto.ConnectRequest, c *webrtc.ICECand
 	}
 	info := conf.ConnectInfo{
 		Flag:      conf.FLAG_CANDIDATE,
-		Source:    node.ID,
+		Source:    node.ConfManager.Conf.ID,
 		Candidate: []byte(c.ToJSON().Candidate),
 		ID:        node.ConnectionPairs[key].ID,
 		Timestamp: target.Timestamp,
 	}
 	switch target.Type {
-	case conf.TYPE_CONNECTION:
+	case conf.OPT_TYPE_CONNECTION:
 		info.Type = conf.CONNECTION_TYPE_SSH
-	case conf.TYPE_START_VNC:
+	case conf.OPT_TYPE_START_VNC:
 		info.Type = conf.CONNECTION_TYPE_VNC
 	}
 	node.push(info, target.Host)
@@ -130,12 +130,12 @@ func (node *Node) Start(ctx context.Context) {
 	go node.Serve(ctx)
 
 	// listen as a "client"
-	l, err := net.Listen("tcp", node.LocalListenAddr)
+	l, err := net.Listen("tcp", node.ConfManager.Conf.LocalListenAddr)
 	if err != nil {
 		logrus.Error(err)
 		os.Exit(1)
 	}
-	logrus.Info("local main service listenning on:", node.LocalListenAddr)
+	logrus.Info("local main service listenning on:", node.ConfManager.Conf.LocalListenAddr)
 	go func() {
 		for {
 			sock, err := l.Accept()
@@ -165,9 +165,9 @@ func (node *Node) Start(ctx context.Context) {
 					continue
 				}
 				switch req.Type {
-				case conf.TYPE_CONNECTION:
+				case conf.OPT_TYPE_CONNECTION:
 					go node.Connect(ctx, sock, req)
-				case conf.TYPE_START_PROXY:
+				case conf.OPT_TYPE_START_PROXY:
 					conf.ClearKnownHosts("127.0.0.1")
 					subCtx, cancl := context.WithCancel(context.Background())
 					go node.Proxy(subCtx, req)
@@ -184,25 +184,50 @@ func (node *Node) Start(ctx context.Context) {
 						cancel:       &cancl,
 					}
 					node.pm.AddProxy(&rep)
-				case conf.TYPE_CLOSE_CONNECTION:
+				case conf.OPT_TYPE_CLOSE_CONNECTION:
 					logrus.Debug("close connection to ", req.Host)
 					go node.CloseConnections(fmt.Sprintf("%s%d", req.Host, req.Timestamp))
 					sock.Close()
-				case conf.TYPE_STOP_PROXY:
+				case conf.OPT_TYPE_STOP_PROXY:
 					list := node.pm.GetConnectionKeys(req.Host)
 					for _, v := range list {
 						node.CloseConnections(v)
 					}
 					node.pm.RemoveProxy(req.Host)
 					sock.Close()
-				case conf.TYPE_PROXY_LIST:
+				case conf.OPT_TYPE_PROXY_LIST:
 					list := node.pm.GetProxyInfos(req.Host)
 					b, err := list.Marshal()
 					if err != nil {
 						logrus.Error(err)
 					}
 					sock.Write(b)
-
+				case conf.OPT_TYPE_SET_CONFIG:
+					var setResp proto.SetConfigResponse
+					buf := make([]byte, 1024)
+					n, err := sock.Read(buf)
+					if err != nil {
+						logrus.Error(err)
+						setResp.Error = err.Error()
+						b, _ := setResp.Marshal()
+						sock.Write(b)
+						continue
+					}
+					buf = buf[:n]
+					var setReq proto.SetConfigRequest
+					err = setReq.Unmarshal(buf)
+					if err != nil {
+						logrus.Error(err)
+						setResp.Error = err.Error()
+						b, _ := setResp.Marshal()
+						sock.Write(b)
+						continue
+					}
+					for _, v := range setReq.Data {
+						node.ConfManager.Set(v.Key, v.Value)
+					}
+					b, _ := setResp.Marshal()
+					sock.Write(b)
 				}
 			}
 		}
@@ -212,7 +237,7 @@ func (node *Node) Start(ctx context.Context) {
 func (node *Node) Anwser(info conf.ConnectInfo) *conf.ConnectInfo {
 	switch info.Type {
 	case conf.CONNECTION_TYPE_SSH:
-		ssh, err := net.Dial("tcp", node.LocalSSHAddr)
+		ssh, err := net.Dial("tcp", node.ConfManager.Conf.LocalSSHAddr)
 		if err != nil {
 			logrus.Error("ssh dial filed:", err)
 			node.CloseConnections(info.Source)
@@ -221,14 +246,14 @@ func (node *Node) Anwser(info conf.ConnectInfo) *conf.ConnectInfo {
 		req := proto.ConnectRequest{
 			Host:      info.Source,
 			Timestamp: info.Timestamp,
-			Type:      conf.TYPE_CONNECTION,
+			Type:      conf.OPT_TYPE_CONNECTION,
 		}
 		key := fmt.Sprintf("%s%d", req.Host, req.Timestamp)
 		node.OpenConnections(req, conf.CP_TYPE_CLIENT, ssh)
 		node.SetConnectionPairID(key, info.ID)
-		return node.ConnectionPairs[key].Anwser(info, node.ID)
+		return node.ConnectionPairs[key].Anwser(info, node.ConfManager.Conf.ID)
 	case conf.CONNECTION_TYPE_VNC:
-		vnc, _, err := websocket.DefaultDialer.Dial(fmt.Sprintf("ws://%s:%d", node.VNCConf.Websockify.Host, node.VNCConf.Websockify.Port), nil)
+		vnc, _, err := websocket.DefaultDialer.Dial(fmt.Sprintf("ws://%s:%d", node.ConfManager.Conf.VNCConf.Websockify.Host, node.ConfManager.Conf.VNCConf.Websockify.Port), nil)
 		// vnc, err := net.Dial("tcp", )
 		if err != nil {
 			logrus.Error("vnc dial filed:", err)
@@ -238,12 +263,12 @@ func (node *Node) Anwser(info conf.ConnectInfo) *conf.ConnectInfo {
 		req := proto.ConnectRequest{
 			Host:      info.Source,
 			Timestamp: info.Timestamp,
-			Type:      conf.TYPE_START_VNC,
+			Type:      conf.OPT_TYPE_START_VNC,
 		}
 		key := fmt.Sprintf("%s%d", req.Host, req.Timestamp)
 		node.OpenConnections(req, conf.CP_TYPE_CLIENT, vnc.UnderlyingConn())
 		node.SetConnectionPairID(key, info.ID)
-		return node.ConnectionPairs[key].Anwser(info, node.ID)
+		return node.ConnectionPairs[key].Anwser(info, node.ConfManager.Conf.ID)
 
 	}
 	return nil
@@ -251,7 +276,7 @@ func (node *Node) Anwser(info conf.ConnectInfo) *conf.ConnectInfo {
 
 func (node *Node) Offer(req proto.ConnectRequest) *conf.ConnectInfo {
 	key := fmt.Sprintf("%s%d", req.Host, req.Timestamp)
-	info := node.ConnectionPairs[key].Offer(node.ID)
+	info := node.ConnectionPairs[key].Offer(node.ConfManager.Conf.ID)
 	info.Timestamp = req.Timestamp
 	info.ID = node.ConnectionPairs[key].ID
 	return info
@@ -292,9 +317,9 @@ func (node *Node) Connect(ctx context.Context, sock net.Conn, target proto.Conne
 	info := node.Offer(target)
 
 	switch target.Type {
-	case conf.TYPE_START_VNC:
+	case conf.OPT_TYPE_START_VNC:
 		info.Type = conf.CONNECTION_TYPE_VNC
-	case conf.TYPE_CONNECTION, conf.TYPE_START_PROXY:
+	case conf.OPT_TYPE_CONNECTION, conf.OPT_TYPE_START_PROXY:
 		info.Type = conf.CONNECTION_TYPE_SSH
 	}
 	info.Timestamp = target.Timestamp
@@ -314,7 +339,7 @@ func (node *Node) push(info conf.ConnectInfo, target string) error {
 	client := http.Client{
 		Timeout: 5 * time.Second,
 	}
-	resp, err := client.Post(node.SignalingServerAddr+
+	resp, err := client.Post(node.ConfManager.Conf.SignalingServerAddr+
 		path.Join("/", "push", target), "application/json", buf)
 	if err != nil {
 		return err
@@ -332,8 +357,8 @@ func (node *Node) pull(ctx context.Context) <-chan conf.ConnectInfo {
 		client := http.Client{
 			Timeout: 30 * time.Second,
 		}
-		res, err := client.Get(node.SignalingServerAddr +
-			path.Join("/", "pull", node.ID))
+		res, err := client.Get(node.ConfManager.Conf.SignalingServerAddr +
+			path.Join("/", "pull", node.ConfManager.Conf.ID))
 		if err != nil {
 			if ctx.Err() == context.Canceled {
 				return nil

@@ -3,9 +3,11 @@ package node
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
+	"github.com/golang/protobuf/jsonpb"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"
@@ -21,8 +23,8 @@ type VNCProxy struct {
 
 func NewVNCProxy(node *Node) *VNCProxy {
 	return &VNCProxy{
-		h5ClientStaticPath: "/Users/john/Desktop/work/sshx/http",
-		proxyAddr:          "127.0.0.1:80",
+		h5ClientStaticPath: node.ConfManager.Conf.VNCStaticPath,
+		proxyAddr:          node.ConfManager.Conf.GuacListenAddr,
 		node:               node,
 	}
 }
@@ -40,6 +42,47 @@ func (vp *VNCProxy) Start() {
 	s := http.StripPrefix("/", http.FileServer(http.Dir(vp.h5ClientStaticPath)))
 	r.PathPrefix("/").Handler(s)
 	http.Handle("/", r)
+	http.HandleFunc("/conf", func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			logrus.Error(err)
+			return
+		}
+		defer conn.Close()
+		req := proto.SetConfigRequest{}
+		_, buf, err := conn.ReadMessage()
+		if err != nil {
+			logrus.Error(err)
+			return
+		}
+		logrus.Debug(buf)
+		err = jsonpb.UnmarshalString(string(buf), &req)
+		if err != nil {
+			logrus.Error(err)
+			return
+		}
+		innerCon, err := net.DialTimeout("tcp", vp.node.ConfManager.Conf.LocalListenAddr, time.Second)
+		if err != nil {
+			logrus.Error(err)
+			return
+		}
+		defer innerCon.Close()
+		preReq := proto.ConnectRequest{
+			Type: conf.OPT_TYPE_SET_CONFIG,
+		}
+		b, _ := preReq.Marshal()
+		if err != nil {
+			logrus.Error(err)
+			return
+		}
+		innerCon.Write(b)
+		innerCon.Read(b)
+		b, _ = req.Marshal()
+		innerCon.Write(b)
+		// innerCon.Read(b)
+		// w.Write(b)
+
+	})
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		req, err := vp.ParseConnectionRequest(r)
 		if err != nil {
@@ -65,7 +108,7 @@ func (vp *VNCProxy) ParseConnectionRequest(r *http.Request) (proto.ConnectReques
 	}
 	req := proto.ConnectRequest{
 		Host:      deviceId[0],
-		Type:      conf.TYPE_START_VNC,
+		Type:      conf.OPT_TYPE_START_VNC,
 		Timestamp: time.Now().Unix(),
 	}
 	return req, nil
