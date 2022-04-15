@@ -3,9 +3,12 @@ package conf
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"strings"
+
+	"log"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/google/uuid"
@@ -16,9 +19,9 @@ import (
 )
 
 type Configure struct {
-	LocalSSHAddr        string
-	LocalListenAddr     string
-	GuacListenAddr      string
+	LocalSSHPort        int32
+	LocalHTTPPort       int32
+	LocalTCPPort        int32
 	ID                  string
 	SignalingServerAddr string
 	RTCConf             webrtc.Configuration
@@ -34,9 +37,9 @@ type ConfManager struct {
 }
 
 var defaultConfig = Configure{
-	LocalListenAddr:     "127.0.0.1:2222",
-	GuacListenAddr:      "127.0.0.1:80",
-	LocalSSHAddr:        "127.0.0.1:22",
+	LocalHTTPPort:       80,
+	LocalSSHPort:        22,
+	LocalTCPPort:        2224,
 	ID:                  uuid.New().String(),
 	SignalingServerAddr: "http://140.179.153.231:11095",
 	RTCConf: webrtc.Configuration{
@@ -62,7 +65,7 @@ func ClearKnownHosts(subStr string) {
 	fileName := os.Getenv("HOME") + "/.ssh/known_hosts"
 	input, err := ioutil.ReadFile(fileName)
 	if err != nil {
-		logrus.Error(err)
+		log.Print(err)
 		return
 	}
 	lines := strings.Split(string(input), "\n")
@@ -76,7 +79,7 @@ func ClearKnownHosts(subStr string) {
 	output := strings.Join(newLines, "\n")
 	err = ioutil.WriteFile(fileName, []byte(output), 0644)
 	if err != nil {
-		logrus.Error(err)
+		log.Print(err)
 		return
 	}
 	//ioutil.WriteFile(fileName, []byte(res), 544)
@@ -92,11 +95,11 @@ func NewConfManager(path string) *ConfManager {
 	vp.OnConfigChange(func(e fsnotify.Event) {
 		err := vp.Unmarshal(&tmp)
 		if err != nil {
-			logrus.Error(err)
+			log.Print(err)
 			return
 		}
 		logrus.Infof("update configure file\n %#v\n", tmp)
-		ClearKnownHosts(tmp.LocalListenAddr)
+		ClearKnownHosts(fmt.Sprintf("127.0.0.1:%d", tmp.LocalSSHPort))
 	})
 	err := vp.ReadInConfig() // Find and read the config file
 	if err != nil {
@@ -107,22 +110,22 @@ func NewConfManager(path string) *ConfManager {
 			logrus.Print("Write config at 1 ...\n", string(bs))
 			err = vp.WriteConfigAs(path + "/.sshx_config.json")
 			if err != nil {
-				logrus.Error(err)
+				log.Print(err)
 				os.Exit(1)
 			}
 		} else {
-			logrus.Error(err)
+			log.Print(err)
 			os.Exit(1)
 		}
 	}
 
 	err = vp.Unmarshal(&tmp)
 	if err != nil {
-		logrus.Error(err)
+		log.Print(err)
 		os.Exit(1)
 	}
 
-	ClearKnownHosts(tmp.LocalListenAddr)
+	ClearKnownHosts(fmt.Sprintf("127.0.0.1:%d", tmp.LocalSSHPort))
 	return &ConfManager{
 		Conf:  &tmp,
 		Viper: vp,
@@ -132,17 +135,16 @@ func NewConfManager(path string) *ConfManager {
 
 func (cm *ConfManager) Set(key, value string) {
 	logrus.Info("key/value", key, value)
-	ClearKnownHosts(cm.Conf.LocalListenAddr)
 	cm.Viper.Set(key, value)
 	logrus.Infof("%#v\n", cm.Conf)
 	err := cm.Viper.Unmarshal(cm.Conf)
 	if err != nil {
-		logrus.Error(err)
+		log.Print(err)
 		return
 	}
 	err = cm.Viper.WriteConfig()
 	if err != nil {
-		logrus.Error(err)
+		log.Print(err)
 		return
 	}
 	logrus.Print("Write config ...")
