@@ -1,5 +1,13 @@
+dist: foxy
 language: go
 go:
   - 1.16
 env:
   - GO111MODULE=on
+before_install:
+  - sudo apt update
+  - sudo apt -y install gcc libc6-dev
+  - sudo apt -y install libx11-dev xorg-dev libxtst-dev
+  - sudo apt -y install libpng++-dev
+  - sudo apt -y install xcb libxcb-xkb-dev x11-xkb-utils libx11-xcb-dev libxkbcommon-x11-dev libxkbcommon-dev
+  - sudo apt -y install xsel xclip
