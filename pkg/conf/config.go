@@ -105,7 +105,7 @@ func NewConfManager(homePath string) *ConfManager {
 			defaultConfig.VNCStaticPath = path.Join(homePath, "noVNC")
 			bs, _ := json.MarshalIndent(defaultConfig, "", "  ")
 			vp.ReadConfig(bytes.NewBuffer(bs))
-			err = vp.WriteConfig()
+			err = vp.WriteConfigAs(path.Join(homePath, "./sshx_config.json"))
 			if err != nil {
 				logrus.Error(err)
 				os.Exit(1)
