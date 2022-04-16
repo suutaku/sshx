@@ -96,7 +96,6 @@ func NewConfManager(homePath string) *ConfManager {
 			logrus.Error(err)
 			return
 		}
-		logrus.Infof("update configure file\n %#v\n", tmp)
 		ClearKnownHosts(fmt.Sprintf("127.0.0.1:%d", tmp.LocalSSHPort))
 	})
 	err := vp.ReadInConfig() // Find and read the config file
@@ -106,8 +105,7 @@ func NewConfManager(homePath string) *ConfManager {
 			defaultConfig.VNCStaticPath = path.Join(homePath, "noVNC")
 			bs, _ := json.MarshalIndent(defaultConfig, "", "  ")
 			vp.ReadConfig(bytes.NewBuffer(bs))
-			logrus.Print("Write config at 1 ...\n", string(bs))
-			err = vp.WriteConfigAs(homePath + "/.sshx_config.json")
+			err = vp.WriteConfig()
 			if err != nil {
 				logrus.Error(err)
 				os.Exit(1)
@@ -135,7 +133,6 @@ func NewConfManager(homePath string) *ConfManager {
 func (cm *ConfManager) Set(key, value string) {
 	logrus.Info("key/value", key, value)
 	cm.Viper.Set(key, value)
-	logrus.Infof("%#v\n", cm.Conf)
 	err := cm.Viper.Unmarshal(cm.Conf)
 	if err != nil {
 		logrus.Error(err)
@@ -146,7 +143,6 @@ func (cm *ConfManager) Set(key, value string) {
 		logrus.Error(err)
 		return
 	}
-	logrus.Print("Write config ...")
 }
 
 func (cm *ConfManager) Show() {
