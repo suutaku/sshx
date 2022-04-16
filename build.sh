@@ -1,5 +1,6 @@
 #!/bin/bash
 
+export SSHX_HOME=/etc/sshx
 go build -ldflags "-s -w" ./cmd/sshx
 go build -ldflags "-s -w" ./cmd/signaling
 echo "$1"
