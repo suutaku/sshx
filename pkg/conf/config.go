@@ -75,7 +75,7 @@ func ClearKnownHosts(subStr string) {
 		}
 	}
 	output := strings.Join(newLines, "\n")
-	err = ioutil.WriteFile(fileName, []byte(output), 0644)
+	err = ioutil.WriteFile(fileName, []byte(output), 0777)
 	if err != nil {
 		logrus.Error(err)
 		return
@@ -109,6 +109,7 @@ func NewConfManager(homePath string) *ConfManager {
 				logrus.Error(err)
 				os.Exit(1)
 			}
+			os.Chmod(path.Join(homePath, "./.sshx_config.json"), 0777)
 		} else {
 			logrus.Error(err)
 			os.Exit(1)

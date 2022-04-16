@@ -11,7 +11,7 @@ if [ "$1" = "install" ];then
     cp ./sshx /usr/local/bin/
     cp ./scripts/sshx.service /etc/systemd/system/
     mkdir -p /etc/sshx
-    chmod 766 /etc/sshx
+    chmod -R 777 /etc/sshx
     cp -rf ./static /etc/sshx/noVNC
     systemctl enable sshx.service
     systemctl start sshx.service
@@ -19,7 +19,7 @@ if [ "$1" = "install" ];then
     cp ./sshx /usr/local/bin/
     cp ./scripts/com.sshx.sshxd.plist /Library/LaunchDaemons/
     mkdir -p /etc/sshx
-    chmod 766 /etc/sshx
+    chmod -R 777 /etc/sshx
     cp -rf ./static /etc/sshx/noVNC
     launchctl load /Library/LaunchDaemons/com.sshx.sshxd.plist
   else
