@@ -79,6 +79,10 @@ func (pair *ConnectionPair) Response(info types.SignalingInfo) error {
 			pair.Close()
 		})
 		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
+			if pair.impl == nil || pair.impl.Conn() == nil {
+				pair.Close()
+				return
+			}
 			_, err := (*pair.impl.Conn()).Write(msg.Data)
 			if err != nil {
 				logrus.Error("sock write failed:", err)
