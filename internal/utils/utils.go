@@ -42,7 +42,7 @@ func Pipe(conn1 net.Conn, conn2 net.Conn) {
 			} else {
 				_, err := conn2.Write(b1)
 				if err != nil {
-					logrus.Fatal(err)
+					logrus.Error(err)
 					return
 				}
 			}
@@ -52,7 +52,7 @@ func Pipe(conn1 net.Conn, conn2 net.Conn) {
 			} else {
 				_, err := conn1.Write(b2)
 				if err != nil {
-					logrus.Fatal(err)
+					logrus.Error(err)
 					return
 				}
 			}

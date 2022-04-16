@@ -206,7 +206,7 @@ func (dal *ScpImpl) PrivateKeyOption(keyPath string) {
 	// create signer
 	signer, err := SignerFromPem(pemBytes, nil)
 	if err != nil {
-		logrus.Fatal(err)
+		logrus.Error(err)
 		return
 	}
 	dal.config.Auth = append(dal.config.Auth, ssh.PublicKeys(signer))

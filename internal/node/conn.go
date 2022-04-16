@@ -35,7 +35,7 @@ type ConnectionPair struct {
 func NewConnectionPair(conf webrtc.Configuration, impl impl.Impl, nodeId string, targetId string) *ConnectionPair {
 	pc, err := webrtc.NewPeerConnection(conf)
 	if err != nil {
-		logrus.Fatal("rtc error:", err)
+		logrus.Error("rtc error:", err)
 		return nil
 	}
 	return &ConnectionPair{
@@ -249,7 +249,7 @@ func (pair *ConnectionPair) ResponseTCP(resp impl.CoreResponse) {
 	enc := gob.NewEncoder(*pair.impl.Conn())
 	err = enc.Encode(resp)
 	if err != nil {
-		logrus.Fatal(err)
+		logrus.Error(err)
 		return
 	}
 }

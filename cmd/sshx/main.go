@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path"
 	"strings"
 
 	cli "github.com/jawher/mow.cli"
@@ -14,17 +13,15 @@ import (
 	"github.com/suutaku/sshx/pkg/conf"
 )
 
+var defaultHomePath = "/etc/sshx"
+
 func getRootPath() string {
 	rootStr := os.Getenv("SSHX_HOME")
 	if rootStr == "" {
-		dirname, err := os.UserHomeDir()
-		if err != nil {
-			dirname, _ = os.Getwd()
-		}
-		rootStr = path.Join(dirname, "/sshx")
+		rootStr = defaultHomePath
 	}
 	if _, err := os.Stat(rootStr); errors.Is(err, os.ErrNotExist) {
-		err := os.Mkdir(rootStr, os.ModePerm)
+		err := os.Mkdir(rootStr, 0766)
 		if err != nil {
 			logrus.Error(err)
 		}
@@ -97,7 +94,7 @@ func cmdConnect(cmd *cli.Cmd) {
 		// parse user name
 		err := dailer.DecodeAddress(*addr)
 		if err != nil {
-			logrus.Fatal(err)
+			logrus.Error(err)
 			return
 		}
 		// parse client option
@@ -137,7 +134,7 @@ func cmdCopy(cmd *cli.Cmd) {
 
 		err := dailer.ParsePaths(*srcPath, *destPath)
 		if err != nil {
-			logrus.Fatal(err)
+			logrus.Error(err)
 			return
 		}
 		// parse client option

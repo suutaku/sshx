@@ -31,7 +31,7 @@ func (n *Node) ServeHTTPAndWS() {
 
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
-			logrus.Fatal(err)
+			logrus.Error(err)
 			return
 		}
 		defer conn.Close()
@@ -46,7 +46,7 @@ func (n *Node) ServeHTTPAndWS() {
 
 		err = dal.Dial()
 		if err != nil {
-			logrus.Fatal(err)
+			logrus.Error(err)
 			return
 		}
 		utils.Pipe(conn.UnderlyingConn(), *dal.Conn())

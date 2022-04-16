@@ -96,7 +96,6 @@ func NewConfManager(homePath string) *ConfManager {
 			logrus.Error(err)
 			return
 		}
-		ClearKnownHosts(fmt.Sprintf("127.0.0.1:%d", tmp.LocalSSHPort))
 	})
 	err := vp.ReadInConfig() // Find and read the config file
 	if err != nil {

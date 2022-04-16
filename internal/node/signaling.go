@@ -113,7 +113,7 @@ func (node *Node) ServeSignaling() {
 				node.AddPair(poolId(info), pair)
 				err := node.GetPair(poolId(info)).Response(info)
 				if err != nil {
-					logrus.Fatal(err)
+					logrus.Error(err)
 					continue
 				}
 				node.GetPair(poolId(info)).PeerConnection.OnICECandidate(func(c *webrtc.ICECandidate) {
@@ -131,10 +131,10 @@ func (node *Node) ServeSignaling() {
 			case types.SIG_TYPE_ANSWER:
 				err := node.GetPair(poolId(info)).MakeConnection(info)
 				if err != nil {
-					logrus.Fatal(err)
+					logrus.Error(err)
 				}
 			case types.SIG_TYPE_UNKNOWN:
-				logrus.Fatal("unknow signaling type")
+				logrus.Error("unknow signaling type")
 			}
 		}
 	}

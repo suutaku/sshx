@@ -4,6 +4,7 @@ After=network.target auditd.service
 
 [Service]
 Environment="SSHX_HOME=/etc/sshx"
+Environment="DISPLAY=:0"
 ExecStart=/usr/local/bin/sshx daemon
 KillMode=process
 Restart=on-failure

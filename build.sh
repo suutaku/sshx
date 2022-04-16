@@ -1,6 +1,5 @@
 #!/bin/bash
 
-export SSHX_HOME=/etc/sshx
 go build -ldflags "-s -w" ./cmd/sshx
 go build -ldflags "-s -w" ./cmd/signaling
 echo "$1"
@@ -8,6 +7,7 @@ if [ "$1" = "install" ];then
   platform=`uname`
   echo "build for ${platform}"
   if [ "$platform" = "Linux" ];then
+    xhost +
     cp ./sshx /usr/local/bin/
     cp ./scripts/sshx.service /etc/systemd/system/
     mkdir -p /etc/sshx

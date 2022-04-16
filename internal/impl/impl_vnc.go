@@ -86,10 +86,9 @@ func (dal *VNCImpl) Dial() error {
 
 func (dal *VNCImpl) Response() error {
 	dal.vncServer = vnc.NewVNC(context.TODO(), dal.vncConf)
-	go dal.vncServer.Start()
-	logrus.Debug("VNCResponser response", dal.localVNCAddr)
+	dal.vncServer.Start()
+	logrus.Debug("VNCResponser response ", dal.localVNCAddr)
 	vnc, _, err := websocket.DefaultDialer.Dial(dal.localVNCAddr, nil)
-	// vnc, err := net.Dial("tcp", )
 	if err != nil {
 		return err
 	}
