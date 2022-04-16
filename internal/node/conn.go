@@ -1,203 +1,255 @@
 package node
 
 import (
-	"context"
+	"encoding/gob"
+	"fmt"
 	"io"
-	"net"
 	"time"
+
+	"github.com/suutaku/sshx/internal/impl"
+	"github.com/suutaku/sshx/pkg/types"
 
 	"github.com/pion/webrtc/v3"
 	"github.com/sirupsen/logrus"
-	"github.com/suutaku/sshx/internal/conf"
 )
+
+type Wrapper struct {
+	*webrtc.DataChannel
+}
+
+func (s *Wrapper) Write(b []byte) (int, error) {
+	err := s.DataChannel.Send(b)
+	return len(b), err
+}
 
 type ConnectionPair struct {
 	*webrtc.PeerConnection
-	LocalSSHConnection *net.Conn
-	ID                 int64
-	Context            context.Context
-	Type               string
-	Exit               chan int
+	Id       int64
+	conf     webrtc.Configuration
+	Exit     chan error
+	impl     impl.Impl
+	nodeId   string
+	targetId string
 }
 
-func NewConnectionPair(cnf webrtc.Configuration, sc *net.Conn, cType string) *ConnectionPair {
-
-	pc, err := webrtc.NewPeerConnection(cnf)
+func NewConnectionPair(conf webrtc.Configuration, impl impl.Impl, nodeId string, targetId string) *ConnectionPair {
+	pc, err := webrtc.NewPeerConnection(conf)
 	if err != nil {
-		logrus.Error("rtc error:", err)
+		logrus.Fatal("rtc error:", err)
 		return nil
 	}
-	cp := ConnectionPair{
-		PeerConnection:     pc,
-		LocalSSHConnection: sc,
-		ID:                 time.Now().UnixNano(),
-		Type:               cType,
-		Exit:               make(chan int),
+	return &ConnectionPair{
+		PeerConnection: pc,
+		conf:           conf,
+		Exit:           make(chan error, 10),
+		impl:           impl,
+		nodeId:         nodeId,
+		targetId:       targetId,
 	}
+}
 
-	cp.PeerConnection.OnICEConnectionStateChange(func(state webrtc.ICEConnectionState) {
-		logrus.Debug("peer connection ice state change: ", state.String())
-		if state.String() == webrtc.ICEConnectionStateDisconnected.String() ||
-			state.String() == webrtc.ICEConnectionStateFailed.String() ||
-			state.String() == webrtc.ICEConnectionStateClosed.String() {
-			cp.Close()
-		}
-	})
+func (pair *ConnectionPair) SetId(id int64) {
+	pair.Id = id
+	debug := fmt.Sprintf("conn_%d", id)
+	logrus.Debug("reset pair id ", debug)
+	pair.impl.SetPairId(debug)
+}
 
-	if cType == "_server" {
-		cp.PeerConnection.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
-			logrus.Debug("peer connection connection state change 1 : ", state.String())
-			if state.String() == webrtc.PeerConnectionStateFailed.String() ||
-				state.String() == webrtc.PeerConnectionStateDisconnected.String() ||
-				state.String() == webrtc.PeerConnectionStateClosed.String() {
-				cp.Close()
-			}
-		})
-		dc, err := cp.PeerConnection.CreateDataChannel("data", nil)
-		if err != nil {
-			logrus.Error("create dc failed:", err)
-			cp.Close()
-		}
+// create responser
+func (pair *ConnectionPair) Response(info types.SignalingInfo) error {
+	pair.Id = info.ID
+	logrus.Debug("pair response")
+	peer, err := webrtc.NewPeerConnection(pair.conf)
+	if err != nil {
+		pair.Exit <- err
+		logrus.Print(err)
+		return err
+	}
+	peer.OnDataChannel(func(dc *webrtc.DataChannel) {
+		//dc.Lock()
 		dc.OnOpen(func() {
-			cp.Exit <- 0 // exit client pull loop
 			logrus.Debug("wrap connection")
-			_, err := io.Copy(&sendWrap{dc}, *(cp.LocalSSHConnection))
+			pair.Exit <- nil
+			err := pair.impl.Response()
 			if err != nil {
-				logrus.Error(err)
+				pair.Exit <- err
+				return
 			}
-			cp.Close()
+			io.Copy(&Wrapper{dc}, *pair.impl.Conn())
+			pair.Close()
 		})
 		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-			_, err := (*cp.LocalSSHConnection).Write(msg.Data)
+			_, err := (*pair.impl.Conn()).Write(msg.Data)
 			if err != nil {
 				logrus.Error("sock write failed:", err)
-				cp.Close()
+				pair.Close()
 				return
 			}
 		})
 		dc.OnClose(func() {
-			cp.Close()
-			logrus.Debug("Data channel closed")
+			logrus.Debug("data channel close")
+			pair.Exit <- nil
+			pair.Close()
 		})
-	} else {
-		cp.PeerConnection.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
-			logrus.Debug("peer connection state change 2 : ", state.String())
-			if state.String() == webrtc.PeerConnectionStateFailed.String() ||
-				state.String() == webrtc.PeerConnectionStateDisconnected.String() ||
-				state.String() == webrtc.PeerConnectionStateClosed.String() {
-				cp.Close()
-			}
-		})
-		cp.PeerConnection.OnDataChannel(func(dc *webrtc.DataChannel) {
-			//dc.Lock()
-			dc.OnOpen(func() {
-				logrus.Debug("wrap connection")
-				io.Copy(&sendWrap{dc}, *(cp.LocalSSHConnection))
-				cp.Close()
-			})
-			dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-				_, err := (*cp.LocalSSHConnection).Write(msg.Data)
-				if err != nil {
-					logrus.Error("sock write failed:", err)
-					cp.Close()
-					return
-				}
-			})
-			dc.OnClose(func() {
-				cp.Close()
-			})
-			//dc.Unlock()
-		})
-	}
+	})
 
-	return &cp
+	pair.PeerConnection = peer
+	return nil
 }
 
-func (cp *ConnectionPair) Anwser(v conf.ConnectInfo, id string) *conf.ConnectInfo {
-	if err := cp.PeerConnection.SetRemoteDescription(webrtc.SessionDescription{
-		Type: webrtc.SDPTypeOffer,
-		SDP:  v.SDP,
-	}); err != nil {
-		logrus.Error("anwser rtc error:", err)
-		cp.Close()
+// create dialer
+func (pair *ConnectionPair) Dial() error {
+	logrus.Debug("pair dial")
+	peer, err := webrtc.NewPeerConnection(pair.conf)
+	if err != nil {
+		logrus.Error(err)
+		return err
+	}
+	dc, err := peer.CreateDataChannel("data", nil)
+	if err != nil {
+		logrus.Error("create dc failed:", err)
+		pair.Close()
+	}
+	dc.OnOpen(func() {
+		logrus.Debug("wrap connection")
+		pair.Exit <- nil
+		_, err := io.Copy(&Wrapper{dc}, *pair.impl.Conn())
+		if err != nil {
+			logrus.Error(err)
+			pair.Exit <- err
+		}
+		pair.Close()
+	})
+	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
+		_, err := (*pair.impl.Conn()).Write(msg.Data)
+		if err != nil {
+			logrus.Error("sock write failed:", err)
+			pair.Close()
+			return
+		}
+	})
+	dc.OnClose(func() {
+		logrus.Debug("data channel close")
+		pair.Exit <- nil
+		pair.Close()
+		logrus.Debug("data channel closed")
+	})
+	pair.PeerConnection = peer
+	return nil
+}
+func (pair *ConnectionPair) Close() {
+	if pair.PeerConnection != nil {
+		pair.PeerConnection.Close()
+	}
+	if pair.impl != nil {
+		pair.impl.Close()
+	}
+}
+
+func (pair *ConnectionPair) Offer(target string, reType int32) *types.SignalingInfo {
+	logrus.Debug("pair offer")
+	offer, err := pair.PeerConnection.CreateOffer(nil)
+	if err != nil {
+		logrus.Error("offer create offer error:", err)
+		pair.Close()
 		return nil
 	}
-	answer, err := cp.PeerConnection.CreateAnswer(nil)
+	if err = pair.PeerConnection.SetLocalDescription(offer); err != nil {
+		logrus.Error("offer rtc error:", err)
+		pair.Close()
+		return nil
+	}
+	info := types.SignalingInfo{
+		ID:                time.Now().UnixNano(),
+		Flag:              types.SIG_TYPE_OFFER,
+		Target:            pair.targetId,
+		SDP:               offer.SDP,
+		RemoteRequestType: reType,
+		Source:            pair.nodeId,
+	}
+	pair.SetId(info.ID)
+	return &info
+}
+
+func (pair *ConnectionPair) Anwser(info types.SignalingInfo) *types.SignalingInfo {
+	pair.SetId(info.ID)
+	logrus.Debug("pair anwser")
+	if err := pair.PeerConnection.SetRemoteDescription(webrtc.SessionDescription{
+		Type: webrtc.SDPTypeOffer,
+		SDP:  info.SDP,
+	}); err != nil {
+		logrus.Error("anwser rtc error:", err)
+		pair.Close()
+		return nil
+	}
+	answer, err := pair.PeerConnection.CreateAnswer(nil)
 	if err != nil {
 		logrus.Error("anwser rtc error:", err)
-		cp.Close()
+		pair.Close()
 		return nil
 	}
 
-	err = cp.PeerConnection.SetLocalDescription(answer)
+	err = pair.PeerConnection.SetLocalDescription(answer)
 	if err != nil {
-		cp.Close()
+		pair.Close()
 		return nil
 	}
-	r := conf.ConnectInfo{
-		Flag:      conf.FLAG_ANWER,
-		SDP:       answer.SDP,
-		Source:    id,
-		Timestamp: v.Timestamp,
+	r := types.SignalingInfo{
+		ID:     info.ID,
+		Flag:   types.SIG_TYPE_ANSWER,
+		SDP:    answer.SDP,
+		Target: pair.targetId,
+		Source: pair.nodeId,
 	}
 	return &r
 }
 
-func (cp *ConnectionPair) Offer(id string) *conf.ConnectInfo {
-
-	offer, err := cp.PeerConnection.CreateOffer(nil)
-	if err != nil {
-		logrus.Error("offer create offer error:", err)
-		cp.Close()
-		return nil
+func (pair *ConnectionPair) MakeConnection(info types.SignalingInfo) error {
+	logrus.Debug("pair make connection")
+	if pair == nil || pair.PeerConnection == nil {
+		return fmt.Errorf("invalid peer connection")
 	}
-	if err = cp.PeerConnection.SetLocalDescription(offer); err != nil {
-		logrus.Error("offer rtc error:", err)
-		cp.Close()
-		return nil
-	}
-	info := conf.ConnectInfo{
-		Flag:   conf.FLAG_OFFER,
-		Source: id,
-		SDP:    offer.SDP,
-	}
-	return &info
-}
-
-func (cp *ConnectionPair) MakeConnection(info conf.ConnectInfo) {
-	if cp.PeerConnection == nil {
-		return
-	}
-	if err := cp.PeerConnection.SetRemoteDescription(webrtc.SessionDescription{
+	if err := pair.PeerConnection.SetRemoteDescription(webrtc.SessionDescription{
 		Type: webrtc.SDPTypeAnswer,
 		SDP:  info.SDP,
 	}); err != nil {
 		logrus.Error("make connection rtc error:", err)
-		cp.Close()
-		return
+		pair.Close()
+		return err
 	}
+	pair.Exit <- nil
+	return nil
 }
 
-func (cp *ConnectionPair) Close() {
-	if cp.PeerConnection != nil {
-		cp.PeerConnection.Close()
-	}
-	if cp.LocalSSHConnection != nil {
-		(*cp.LocalSSHConnection).Close()
-	}
-}
-
-func (cp *ConnectionPair) AddCandidate(ca *webrtc.ICECandidateInit, id int64) {
-	if cp != nil && id == cp.ID {
-		err := cp.PeerConnection.AddICECandidate(*ca)
+func (pair *ConnectionPair) AddCandidate(ca *webrtc.ICECandidateInit, id int64) error {
+	if pair != nil && id == pair.Id {
+		err := pair.PeerConnection.AddICECandidate(*ca)
 		if err != nil {
-			logrus.Error(err, cp.ID, id)
+			logrus.Error(err, pair.Id, id)
+			return err
 		}
 	} else {
-		logrus.Error("Dismatched candidate id ", cp.ID, id)
+		return fmt.Errorf("dismatched candidate id")
 	}
+	return nil
 }
 
-func (cp *ConnectionPair) IsRemoteDscripterSet() bool {
-	return !(cp.PeerConnection.RemoteDescription() == nil)
+func (pair *ConnectionPair) IsRemoteDscripterSet() bool {
+	return !(pair.PeerConnection.RemoteDescription() == nil)
+}
+
+func (pair *ConnectionPair) ResponseTCP(resp impl.CoreResponse) {
+	logrus.Debug("waiting pair signal")
+	err := <-pair.Exit
+	logrus.Debug("Response TCP")
+	if err != nil {
+		resp.Status = -1
+	}
+
+	enc := gob.NewEncoder(*pair.impl.Conn())
+	err = enc.Encode(resp)
+	if err != nil {
+		logrus.Fatal(err)
+		return
+	}
 }

@@ -1,53 +1,61 @@
 package utils
 
 import (
-	"bufio"
-	"fmt"
-	"os"
-	"runtime"
-	"strings"
+	"net"
 
 	"github.com/sirupsen/logrus"
 )
 
-const customDomain = "vnc.sshx.wz"
+func chanFromConn(conn net.Conn) chan []byte {
+	c := make(chan []byte)
 
-var alias = fmt.Sprintf("127.0.0.1    %s\n", customDomain)
+	go func() {
+		b := make([]byte, 1024)
 
-const macHostFilePath = "/private/etc/hosts"
-const linuxHostFilePath = "/etc/hosts"
+		for {
+			n, err := conn.Read(b)
+			if n > 0 {
+				res := make([]byte, n)
+				// Copy the buffer so it doesn't get changed while read by the recipient.
+				copy(res, b[:n])
+				c <- res
+			}
+			if err != nil {
+				c <- nil
+				break
+			}
+		}
+	}()
 
-func FixDNSAlias() {
-	confPath := ""
-	osname := runtime.GOOS
-	switch osname {
-	case "windows":
-		logrus.Info("Platform: Windows")
-	case "darwin":
-		logrus.Info("Platform: MAC OSX")
-		confPath = macHostFilePath
-	case "linux":
-		logrus.Info("Platform: Linux")
-		confPath = linuxHostFilePath
-	default:
-		logrus.Infof("Platform %s was not supported yet.\n", osname)
-	}
-	file, err := os.OpenFile(confPath, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0644)
-	if err != nil {
-		logrus.Error(err)
-	}
-	defer file.Close()
-	scanner := bufio.NewScanner(file)
+	return c
+}
 
-	for scanner.Scan() {
-		if strings.Contains(scanner.Text(), customDomain) {
-			logrus.Info("alias alredy exist in ", confPath)
-			return
+func Pipe(conn1 net.Conn, conn2 net.Conn) {
+	chan1 := chanFromConn(conn1)
+	chan2 := chanFromConn(conn2)
+
+	for {
+		select {
+		case b1 := <-chan1:
+			if b1 == nil {
+				return
+			} else {
+				_, err := conn2.Write(b1)
+				if err != nil {
+					logrus.Fatal(err)
+					return
+				}
+			}
+		case b2 := <-chan2:
+			if b2 == nil {
+				return
+			} else {
+				_, err := conn1.Write(b2)
+				if err != nil {
+					logrus.Fatal(err)
+					return
+				}
+			}
 		}
 	}
-	_, err = file.WriteString(alias)
-	if err != nil {
-		logrus.Error(err)
-	}
-	logrus.Info("fix DNS alias successfully")
 }

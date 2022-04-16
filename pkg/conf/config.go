@@ -3,8 +3,10 @@ package conf
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
 	"strings"
 
 	"github.com/fsnotify/fsnotify"
@@ -16,14 +18,15 @@ import (
 )
 
 type Configure struct {
-	LocalSSHAddr        string
-	LocalListenAddr     string
-	GuacListenAddr      string
+	LocalSSHPort        int32
+	LocalHTTPPort       int32
+	LocalTCPPort        int32
 	ID                  string
 	SignalingServerAddr string
 	RTCConf             webrtc.Configuration
 	VNCConf             config.Configure
 	VNCStaticPath       string
+	ETHAddr             string
 }
 
 type ConfManager struct {
@@ -33,9 +36,9 @@ type ConfManager struct {
 }
 
 var defaultConfig = Configure{
-	LocalListenAddr:     "127.0.0.1:2222",
-	GuacListenAddr:      "127.0.0.1:80",
-	LocalSSHAddr:        "127.0.0.1:22",
+	LocalHTTPPort:       80,
+	LocalSSHPort:        22,
+	LocalTCPPort:        2224,
 	ID:                  uuid.New().String(),
 	SignalingServerAddr: "http://140.179.153.231:11095",
 	RTCConf: webrtc.Configuration{
@@ -51,8 +54,7 @@ var defaultConfig = Configure{
 			},
 		},
 	},
-	VNCConf:       config.DefaultConfigure,
-	VNCStaticPath: "/etc/sshx/noVNC",
+	VNCConf: config.DefaultConfigure,
 }
 
 func ClearKnownHosts(subStr string) {
@@ -81,29 +83,29 @@ func ClearKnownHosts(subStr string) {
 	//ioutil.WriteFile(fileName, []byte(res), 544)
 }
 
-func NewConfManager(path string) *ConfManager {
+func NewConfManager(homePath string) *ConfManager {
 	var tmp Configure
 	vp := viper.New()
 	vp.SetConfigName(".sshx_config")
 	vp.SetConfigType("json")
-	vp.AddConfigPath(path)
+	vp.AddConfigPath(homePath)
 	vp.WatchConfig()
 	vp.OnConfigChange(func(e fsnotify.Event) {
 		err := vp.Unmarshal(&tmp)
 		if err != nil {
 			logrus.Error(err)
-			os.Exit(1)
+			return
 		}
-		ClearKnownHosts(tmp.LocalListenAddr)
+		ClearKnownHosts(fmt.Sprintf("127.0.0.1:%d", tmp.LocalSSHPort))
 	})
 	err := vp.ReadInConfig() // Find and read the config file
 	if err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
 			// Config file not found; ignore error if desired
+			defaultConfig.VNCStaticPath = path.Join(homePath, "noVNC")
 			bs, _ := json.MarshalIndent(defaultConfig, "", "  ")
 			vp.ReadConfig(bytes.NewBuffer(bs))
-			logrus.Print("Write config ...\n", string(bs))
-			err = vp.WriteConfigAs(path + "/.sshx_config.json")
+			err = vp.WriteConfig()
 			if err != nil {
 				logrus.Error(err)
 				os.Exit(1)
@@ -120,25 +122,27 @@ func NewConfManager(path string) *ConfManager {
 		os.Exit(1)
 	}
 
-	ClearKnownHosts(tmp.LocalListenAddr)
+	ClearKnownHosts(fmt.Sprintf("127.0.0.1:%d", tmp.LocalSSHPort))
 	return &ConfManager{
 		Conf:  &tmp,
 		Viper: vp,
-		Path:  path,
+		Path:  homePath,
 	}
 }
 
 func (cm *ConfManager) Set(key, value string) {
-	ClearKnownHosts(cm.Conf.LocalListenAddr)
+	logrus.Info("key/value", key, value)
 	cm.Viper.Set(key, value)
-	logrus.Print("Write config ...")
 	err := cm.Viper.Unmarshal(cm.Conf)
 	if err != nil {
 		logrus.Error(err)
-		os.Exit(1)
+		return
 	}
-	cm.Viper.WriteConfigAs(cm.Path + "/.sshx_config.json")
-
+	err = cm.Viper.WriteConfig()
+	if err != nil {
+		logrus.Error(err)
+		return
+	}
 }
 
 func (cm *ConfManager) Show() {

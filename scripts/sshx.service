@@ -3,6 +3,7 @@ Description=SSHX is a remote ssh client with WebRTC
 After=network.target auditd.service
 
 [Service]
+Environment="SSHX_HOME=/etc/sshx"
 ExecStart=/usr/local/bin/sshx daemon
 KillMode=process
 Restart=on-failure
