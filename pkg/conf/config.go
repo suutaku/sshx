@@ -8,8 +8,6 @@ import (
 	"os"
 	"strings"
 
-	"log"
-
 	"github.com/fsnotify/fsnotify"
 	"github.com/google/uuid"
 	"github.com/pion/webrtc/v3"
@@ -65,7 +63,7 @@ func ClearKnownHosts(subStr string) {
 	fileName := os.Getenv("HOME") + "/.ssh/known_hosts"
 	input, err := ioutil.ReadFile(fileName)
 	if err != nil {
-		log.Print(err)
+		logrus.Error(err)
 		return
 	}
 	lines := strings.Split(string(input), "\n")
@@ -79,7 +77,7 @@ func ClearKnownHosts(subStr string) {
 	output := strings.Join(newLines, "\n")
 	err = ioutil.WriteFile(fileName, []byte(output), 0644)
 	if err != nil {
-		log.Print(err)
+		logrus.Error(err)
 		return
 	}
 	//ioutil.WriteFile(fileName, []byte(res), 544)
@@ -95,7 +93,7 @@ func NewConfManager(path string) *ConfManager {
 	vp.OnConfigChange(func(e fsnotify.Event) {
 		err := vp.Unmarshal(&tmp)
 		if err != nil {
-			log.Print(err)
+			logrus.Error(err)
 			return
 		}
 		logrus.Infof("update configure file\n %#v\n", tmp)
@@ -110,18 +108,18 @@ func NewConfManager(path string) *ConfManager {
 			logrus.Print("Write config at 1 ...\n", string(bs))
 			err = vp.WriteConfigAs(path + "/.sshx_config.json")
 			if err != nil {
-				log.Print(err)
+				logrus.Error(err)
 				os.Exit(1)
 			}
 		} else {
-			log.Print(err)
+			logrus.Error(err)
 			os.Exit(1)
 		}
 	}
 
 	err = vp.Unmarshal(&tmp)
 	if err != nil {
-		log.Print(err)
+		logrus.Error(err)
 		os.Exit(1)
 	}
 
@@ -139,12 +137,12 @@ func (cm *ConfManager) Set(key, value string) {
 	logrus.Infof("%#v\n", cm.Conf)
 	err := cm.Viper.Unmarshal(cm.Conf)
 	if err != nil {
-		log.Print(err)
+		logrus.Error(err)
 		return
 	}
 	err = cm.Viper.WriteConfig()
 	if err != nil {
-		log.Print(err)
+		logrus.Error(err)
 		return
 	}
 	logrus.Print("Write config ...")

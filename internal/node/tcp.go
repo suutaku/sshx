@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"net"
 
-	"log"
-
 	"github.com/pion/webrtc/v3"
 	"github.com/sirupsen/logrus"
 	"github.com/suutaku/sshx/internal/impl"
@@ -16,13 +14,13 @@ import (
 func (node *Node) ServeTCP() {
 	listenner, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", node.ConfManager.Conf.LocalTCPPort))
 	if err != nil {
-		log.Print(err)
+		logrus.Error(err)
 		panic(err)
 	}
 	for {
 		sock, err := listenner.Accept()
 		if err != nil {
-			log.Print(err)
+			logrus.Error(err)
 			continue
 		}
 		tmp := impl.CoreRequest{}

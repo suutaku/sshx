@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net"
 	"os"
 	"os/user"
@@ -228,7 +227,7 @@ func (dal *SshImpl) PrivateKeyOption(keyPath string) {
 	// create signer
 	signer, err := SignerFromPem(pemBytes, nil)
 	if err != nil {
-		log.Fatal(err)
+		logrus.Fatal(err)
 		return
 	}
 	dal.config.Auth = append(dal.config.Auth, ssh.PublicKeys(signer))
@@ -345,7 +344,7 @@ func x11Request(session *ssh.Session, client *ssh.Client) {
 	// send x11-req Request
 	ok, err := session.SendRequest("x11-req", true, ssh.Marshal(payload))
 	if err == nil && !ok {
-		log.Fatal("ssh: x11-req failed")
+		logrus.Fatal("ssh: x11-req failed")
 		return
 	}
 	x11channels := client.HandleChannelOpen("x11")

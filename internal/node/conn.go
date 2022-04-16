@@ -6,8 +6,6 @@ import (
 	"io"
 	"time"
 
-	"log"
-
 	"github.com/suutaku/sshx/internal/impl"
 	"github.com/suutaku/sshx/pkg/types"
 
@@ -37,7 +35,7 @@ type ConnectionPair struct {
 func NewConnectionPair(conf webrtc.Configuration, impl impl.Impl, nodeId string, targetId string) *ConnectionPair {
 	pc, err := webrtc.NewPeerConnection(conf)
 	if err != nil {
-		log.Fatal("rtc error:", err)
+		logrus.Fatal("rtc error:", err)
 		return nil
 	}
 	return &ConnectionPair{
@@ -64,7 +62,7 @@ func (pair *ConnectionPair) Response(info types.SignalingInfo) error {
 	peer, err := webrtc.NewPeerConnection(pair.conf)
 	if err != nil {
 		pair.Exit <- err
-		log.Print(err)
+		logrus.Print(err)
 		return err
 	}
 	peer.OnDataChannel(func(dc *webrtc.DataChannel) {
@@ -83,7 +81,7 @@ func (pair *ConnectionPair) Response(info types.SignalingInfo) error {
 		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			_, err := (*pair.impl.Conn()).Write(msg.Data)
 			if err != nil {
-				log.Print("sock write failed:", err)
+				logrus.Error("sock write failed:", err)
 				pair.Close()
 				return
 			}
@@ -104,12 +102,12 @@ func (pair *ConnectionPair) Dial() error {
 	logrus.Debug("pair dial")
 	peer, err := webrtc.NewPeerConnection(pair.conf)
 	if err != nil {
-		log.Print(err)
+		logrus.Error(err)
 		return err
 	}
 	dc, err := peer.CreateDataChannel("data", nil)
 	if err != nil {
-		log.Print("create dc failed:", err)
+		logrus.Error("create dc failed:", err)
 		pair.Close()
 	}
 	dc.OnOpen(func() {
@@ -117,7 +115,7 @@ func (pair *ConnectionPair) Dial() error {
 		pair.Exit <- nil
 		_, err := io.Copy(&Wrapper{dc}, *pair.impl.Conn())
 		if err != nil {
-			log.Print(err)
+			logrus.Error(err)
 			pair.Exit <- err
 		}
 		pair.Close()
@@ -125,7 +123,7 @@ func (pair *ConnectionPair) Dial() error {
 	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 		_, err := (*pair.impl.Conn()).Write(msg.Data)
 		if err != nil {
-			log.Print("sock write failed:", err)
+			logrus.Error("sock write failed:", err)
 			pair.Close()
 			return
 		}
@@ -152,12 +150,12 @@ func (pair *ConnectionPair) Offer(target string, reType int32) *types.SignalingI
 	logrus.Debug("pair offer")
 	offer, err := pair.PeerConnection.CreateOffer(nil)
 	if err != nil {
-		log.Print("offer create offer error:", err)
+		logrus.Error("offer create offer error:", err)
 		pair.Close()
 		return nil
 	}
 	if err = pair.PeerConnection.SetLocalDescription(offer); err != nil {
-		log.Print("offer rtc error:", err)
+		logrus.Error("offer rtc error:", err)
 		pair.Close()
 		return nil
 	}
@@ -180,13 +178,13 @@ func (pair *ConnectionPair) Anwser(info types.SignalingInfo) *types.SignalingInf
 		Type: webrtc.SDPTypeOffer,
 		SDP:  info.SDP,
 	}); err != nil {
-		log.Print("anwser rtc error:", err)
+		logrus.Error("anwser rtc error:", err)
 		pair.Close()
 		return nil
 	}
 	answer, err := pair.PeerConnection.CreateAnswer(nil)
 	if err != nil {
-		log.Print("anwser rtc error:", err)
+		logrus.Error("anwser rtc error:", err)
 		pair.Close()
 		return nil
 	}
@@ -215,7 +213,7 @@ func (pair *ConnectionPair) MakeConnection(info types.SignalingInfo) error {
 		Type: webrtc.SDPTypeAnswer,
 		SDP:  info.SDP,
 	}); err != nil {
-		log.Print("make connection rtc error:", err)
+		logrus.Error("make connection rtc error:", err)
 		pair.Close()
 		return err
 	}
@@ -227,7 +225,7 @@ func (pair *ConnectionPair) AddCandidate(ca *webrtc.ICECandidateInit, id int64) 
 	if pair != nil && id == pair.Id {
 		err := pair.PeerConnection.AddICECandidate(*ca)
 		if err != nil {
-			log.Print(err, pair.Id, id)
+			logrus.Error(err, pair.Id, id)
 			return err
 		}
 	} else {
@@ -251,7 +249,7 @@ func (pair *ConnectionPair) ResponseTCP(resp impl.CoreResponse) {
 	enc := gob.NewEncoder(*pair.impl.Conn())
 	err = enc.Encode(resp)
 	if err != nil {
-		log.Fatal(err)
+		logrus.Fatal(err)
 		return
 	}
 }

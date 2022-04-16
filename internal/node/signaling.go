@@ -8,8 +8,6 @@ import (
 	"path"
 	"time"
 
-	"log"
-
 	"github.com/pion/webrtc/v3"
 	"github.com/sirupsen/logrus"
 	"github.com/suutaku/sshx/internal/impl"
@@ -84,17 +82,17 @@ func (node *Node) ServeSignaling() {
 				logrus.Debug("start push")
 				buf := bytes.NewBuffer(nil)
 				if err := gob.NewEncoder(buf).Encode(info); err != nil {
-					log.Print(err)
+					logrus.Error(err)
 					return
 				}
 				resp, err := client.Post(node.ConfManager.Conf.SignalingServerAddr+
 					path.Join("/", "push", info.Target), "application/binary", buf)
 				if err != nil {
-					log.Print(err)
+					logrus.Error(err)
 					return
 				}
 				if resp.StatusCode != http.StatusOK {
-					log.Println("push to ", info.Target, "faild")
+					logrus.Errorln("push to ", info.Target, "faild")
 					return
 				}
 				logrus.Debug("push ok")
@@ -115,7 +113,7 @@ func (node *Node) ServeSignaling() {
 				node.AddPair(poolId(info), pair)
 				err := node.GetPair(poolId(info)).Response(info)
 				if err != nil {
-					log.Fatal(err)
+					logrus.Fatal(err)
 					continue
 				}
 				node.GetPair(poolId(info)).PeerConnection.OnICECandidate(func(c *webrtc.ICECandidate) {
@@ -133,10 +131,10 @@ func (node *Node) ServeSignaling() {
 			case types.SIG_TYPE_ANSWER:
 				err := node.GetPair(poolId(info)).MakeConnection(info)
 				if err != nil {
-					log.Fatal(err)
+					logrus.Fatal(err)
 				}
 			case types.SIG_TYPE_UNKNOWN:
-				log.Fatal("unknow signaling type")
+				logrus.Fatal("unknow signaling type")
 			}
 		}
 	}

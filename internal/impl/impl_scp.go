@@ -4,7 +4,6 @@ import (
 	"encoding/gob"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net"
 	"os"
 	"os/user"
@@ -207,7 +206,7 @@ func (dal *ScpImpl) PrivateKeyOption(keyPath string) {
 	// create signer
 	signer, err := SignerFromPem(pemBytes, nil)
 	if err != nil {
-		log.Fatal(err)
+		logrus.Fatal(err)
 		return
 	}
 	dal.config.Auth = append(dal.config.Auth, ssh.PublicKeys(signer))

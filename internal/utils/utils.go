@@ -1,8 +1,9 @@
 package utils
 
 import (
-	"log"
 	"net"
+
+	"github.com/sirupsen/logrus"
 )
 
 func chanFromConn(conn net.Conn) chan []byte {
@@ -41,7 +42,7 @@ func Pipe(conn1 net.Conn, conn2 net.Conn) {
 			} else {
 				_, err := conn2.Write(b1)
 				if err != nil {
-					log.Fatal(err)
+					logrus.Fatal(err)
 					return
 				}
 			}
@@ -51,7 +52,7 @@ func Pipe(conn1 net.Conn, conn2 net.Conn) {
 			} else {
 				_, err := conn1.Write(b2)
 				if err != nil {
-					log.Fatal(err)
+					logrus.Fatal(err)
 					return
 				}
 			}

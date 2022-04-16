@@ -2,7 +2,6 @@ package node
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -32,7 +31,7 @@ func (n *Node) ServeHTTPAndWS() {
 
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
-			log.Fatal(err)
+			logrus.Fatal(err)
 			return
 		}
 		defer conn.Close()
@@ -47,7 +46,7 @@ func (n *Node) ServeHTTPAndWS() {
 
 		err = dal.Dial()
 		if err != nil {
-			log.Fatal(err)
+			logrus.Fatal(err)
 			return
 		}
 		utils.Pipe(conn.UnderlyingConn(), *dal.Conn())
