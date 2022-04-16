@@ -13,11 +13,11 @@ type Node struct {
 	cpPool      map[string]*ConnectionPair
 }
 
-func NewNode() *Node {
+func NewNode(home string) *Node {
 	return &Node{
 		sigPull:     make(chan types.SignalingInfo, 128),
 		sigPush:     make(chan types.SignalingInfo, 128),
-		ConfManager: conf.NewConfManager("./"),
+		ConfManager: conf.NewConfManager(home),
 		cpPool:      make(map[string]*ConnectionPair),
 	}
 }

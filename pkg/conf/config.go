@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
 	"strings"
 
 	"github.com/fsnotify/fsnotify"
@@ -53,8 +54,7 @@ var defaultConfig = Configure{
 			},
 		},
 	},
-	VNCConf:       config.DefaultConfigure,
-	VNCStaticPath: "/etc/sshx/noVNC",
+	VNCConf: config.DefaultConfigure,
 }
 
 func ClearKnownHosts(subStr string) {
@@ -83,12 +83,12 @@ func ClearKnownHosts(subStr string) {
 	//ioutil.WriteFile(fileName, []byte(res), 544)
 }
 
-func NewConfManager(path string) *ConfManager {
+func NewConfManager(homePath string) *ConfManager {
 	var tmp Configure
 	vp := viper.New()
 	vp.SetConfigName(".sshx_config")
 	vp.SetConfigType("json")
-	vp.AddConfigPath(path)
+	vp.AddConfigPath(homePath)
 	vp.WatchConfig()
 	vp.OnConfigChange(func(e fsnotify.Event) {
 		err := vp.Unmarshal(&tmp)
@@ -103,10 +103,11 @@ func NewConfManager(path string) *ConfManager {
 	if err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
 			// Config file not found; ignore error if desired
+			defaultConfig.VNCStaticPath = path.Join(homePath, "noVNC")
 			bs, _ := json.MarshalIndent(defaultConfig, "", "  ")
 			vp.ReadConfig(bytes.NewBuffer(bs))
 			logrus.Print("Write config at 1 ...\n", string(bs))
-			err = vp.WriteConfigAs(path + "/.sshx_config.json")
+			err = vp.WriteConfigAs(homePath + "/.sshx_config.json")
 			if err != nil {
 				logrus.Error(err)
 				os.Exit(1)
@@ -127,7 +128,7 @@ func NewConfManager(path string) *ConfManager {
 	return &ConfManager{
 		Conf:  &tmp,
 		Viper: vp,
-		Path:  path,
+		Path:  homePath,
 	}
 }
 
