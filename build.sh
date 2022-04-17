@@ -1,27 +1,34 @@
 #!/bin/bash
 
+ platform=`uname`
+
+if [ "$platform" = "Linux" ];then
+  sudo apt install -y libx11-dev xorg-dev libxtst-dev
+  sudo apt install -y xcb libxcb-xkb-dev x11-xkb-utils libx11-xcb-dev libxkbcommon-x11-dev libxkbcommon-dev
+  sudo apt install -y xsel xclip
+fi
+
 go build -ldflags "-s -w" ./cmd/sshx
 go build -ldflags "-s -w" ./cmd/signaling
 echo "$1"
 if [ "$1" = "install" ];then
-  platform=`uname`
   echo "build for ${platform}"
   if [ "$platform" = "Linux" ];then
     xhost +
-    cp ./sshx /usr/local/bin/
-    cp ./scripts/sshx.service /etc/systemd/system/
-    mkdir -p /etc/sshx
-    chmod -R 777 /etc/sshx
-    cp -rf ./static /etc/sshx/noVNC
-    systemctl enable sshx.service
-    systemctl start sshx.service
+    sudo cp ./sshx /usr/local/bin/
+    sudo cp ./scripts/sshx.service /etc/systemd/system/
+    sudo mkdir -p /etc/sshx
+    sudo chmod -R 777 /etc/sshx
+    sudo cp -rf ./static /etc/sshx/noVNC
+    sudo  systemctl enable sshx.service
+    sudo systemctl start sshx.service
   elif [ "$platform" = "Darwin" ];then
-    cp ./sshx /usr/local/bin/
-    cp ./scripts/com.sshx.sshxd.plist /Library/LaunchDaemons/
-    mkdir -p /etc/sshx
-    chmod -R 777 /etc/sshx
-    cp -rf ./static /etc/sshx/noVNC
-    launchctl load /Library/LaunchDaemons/com.sshx.sshxd.plist
+    sudo cp ./sshx /usr/local/bin/
+    sudo cp ./scripts/com.sshx.sshxd.plist /Library/LaunchDaemons/
+    sudo mkdir -p /etc/sshx
+    sudo chmod -R 777 /etc/sshx
+    sudo cp -rf ./static /etc/sshx/noVNC
+    sudo launchctl load /Library/LaunchDaemons/com.sshx.sshxd.plist
   else
     echo "TODO: ${platform}"
   fi
