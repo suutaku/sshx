@@ -24,13 +24,12 @@ func (s *Wrapper) Write(b []byte) (int, error) {
 
 type ConnectionPair struct {
 	*webrtc.PeerConnection
-	Id        int64
-	conf      webrtc.Configuration
-	Exit      chan error
-	impl      impl.Impl
-	nodeId    string
-	targetId  string
-	remoteSet bool
+	Id       int64
+	conf     webrtc.Configuration
+	Exit     chan error
+	impl     impl.Impl
+	nodeId   string
+	targetId string
 }
 
 func NewConnectionPair(conf webrtc.Configuration, impl impl.Impl, nodeId string, targetId string) *ConnectionPair {
@@ -225,17 +224,12 @@ func (pair *ConnectionPair) MakeConnection(info types.SignalingInfo) error {
 		pair.Close()
 		return err
 	}
-	pair.remoteSet = true
 	pair.Exit <- nil
 	return nil
 }
 
 func (pair *ConnectionPair) AddCandidate(ca *webrtc.ICECandidateInit, id int64) error {
 	if pair != nil && id == pair.Id {
-		for !pair.remoteSet {
-			logrus.Warn("waitting makeconnection set remote description")
-			time.Sleep(200 * time.Millisecond)
-		}
 		err := pair.PeerConnection.AddICECandidate(*ca)
 		if err != nil {
 			logrus.Error(err, pair.Id, id)
