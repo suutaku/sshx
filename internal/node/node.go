@@ -23,10 +23,9 @@ func NewNode(home string) *Node {
 }
 
 func (node *Node) Start() {
-	//vncServer := vnc.NewVNC(context.TODO(), node.ConfManager.Conf.VNCConf)
-	//go vncServer.Start()
 	go node.ServeHTTPAndWS()
 	go node.ServeSignaling()
+	go node.StartVNCServer()
 	node.ServeTCP()
 }
 

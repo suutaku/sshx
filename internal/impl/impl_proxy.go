@@ -16,7 +16,6 @@ type ProxyImpl struct {
 	localSSHAddr   string
 	hostId         string
 	pairId         string
-	retry          int
 	proxyPort      int32
 	running        bool
 }
@@ -70,7 +69,7 @@ func (proxy *ProxyImpl) doDial(inconn *net.Conn) error {
 		return err
 	}
 	proxy.pairId = string(resp.PairId)
-	utils.Pipe(*inconn, conn)
+	utils.Pipe(inconn, &conn)
 	return nil
 }
 

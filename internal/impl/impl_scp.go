@@ -133,12 +133,13 @@ func (dal *ScpImpl) Close() {
 	if err != nil {
 		return
 	}
-	enc := gob.NewEncoder(conn)
-	err = enc.Encode(req)
-	if err != nil {
-		return
-	}
 	defer conn.Close()
+	enc := gob.NewEncoder(conn)
+	enc.Encode(req)
+	if dal.conn != nil {
+		(*dal.conn).Close()
+	}
+
 }
 
 func (dal *ScpImpl) Conn() *net.Conn {

@@ -24,12 +24,13 @@ func (s *Wrapper) Write(b []byte) (int, error) {
 
 type ConnectionPair struct {
 	*webrtc.PeerConnection
-	Id       int64
-	conf     webrtc.Configuration
-	Exit     chan error
-	impl     impl.Impl
-	nodeId   string
-	targetId string
+	Id        int64
+	conf      webrtc.Configuration
+	Exit      chan error
+	impl      impl.Impl
+	nodeId    string
+	targetId  string
+	remoteSet bool
 }
 
 func NewConnectionPair(conf webrtc.Configuration, impl impl.Impl, nodeId string, targetId string) *ConnectionPair {
@@ -51,7 +52,6 @@ func NewConnectionPair(conf webrtc.Configuration, impl impl.Impl, nodeId string,
 func (pair *ConnectionPair) SetId(id int64) {
 	pair.Id = id
 	debug := fmt.Sprintf("conn_%d", id)
-	logrus.Debug("reset pair id ", debug)
 	pair.impl.SetPairId(debug)
 }
 
@@ -68,18 +68,22 @@ func (pair *ConnectionPair) Response(info types.SignalingInfo) error {
 	peer.OnDataChannel(func(dc *webrtc.DataChannel) {
 		//dc.Lock()
 		dc.OnOpen(func() {
-			logrus.Debug("wrap connection")
-			pair.Exit <- nil
+			logrus.Info("data channel open 2")
 			err := pair.impl.Response()
 			if err != nil {
+				logrus.Error(err)
 				pair.Exit <- err
 				return
 			}
+			pair.Exit <- err
 			io.Copy(&Wrapper{dc}, *pair.impl.Conn())
+			dc.Close()
 			pair.Close()
 		})
 		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
+			logrus.Debug("message comes")
 			if pair.impl == nil || pair.impl.Conn() == nil {
+				logrus.Debug("on message impl or impl conn was empty")
 				pair.Close()
 				return
 			}
@@ -111,30 +115,30 @@ func (pair *ConnectionPair) Dial() error {
 	}
 	dc, err := peer.CreateDataChannel("data", nil)
 	if err != nil {
-		logrus.Error("create dc failed:", err)
 		pair.Close()
+		return err
 	}
 	dc.OnOpen(func() {
-		logrus.Debug("wrap connection")
+		logrus.Info("data channel open 1")
 		pair.Exit <- nil
 		_, err := io.Copy(&Wrapper{dc}, *pair.impl.Conn())
 		if err != nil {
 			logrus.Error(err)
 			pair.Exit <- err
+			dc.Close()
+			pair.Close()
 		}
-		pair.Close()
 	})
 	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 		_, err := (*pair.impl.Conn()).Write(msg.Data)
 		if err != nil {
 			logrus.Error("sock write failed:", err)
 			pair.Close()
-			return
 		}
 	})
 	dc.OnClose(func() {
-		logrus.Debug("data channel close")
-		pair.Exit <- nil
+		logrus.Info("data channel close")
+		pair.Exit <- fmt.Errorf("data channel close")
 		pair.Close()
 		logrus.Debug("data channel closed")
 	})
@@ -195,17 +199,17 @@ func (pair *ConnectionPair) Anwser(info types.SignalingInfo) *types.SignalingInf
 
 	err = pair.PeerConnection.SetLocalDescription(answer)
 	if err != nil {
+		logrus.Error(err)
 		pair.Close()
 		return nil
 	}
-	r := types.SignalingInfo{
+	return &types.SignalingInfo{
 		ID:     info.ID,
 		Flag:   types.SIG_TYPE_ANSWER,
 		SDP:    answer.SDP,
 		Target: pair.targetId,
 		Source: pair.nodeId,
 	}
-	return &r
 }
 
 func (pair *ConnectionPair) MakeConnection(info types.SignalingInfo) error {
@@ -221,12 +225,17 @@ func (pair *ConnectionPair) MakeConnection(info types.SignalingInfo) error {
 		pair.Close()
 		return err
 	}
+	pair.remoteSet = true
 	pair.Exit <- nil
 	return nil
 }
 
 func (pair *ConnectionPair) AddCandidate(ca *webrtc.ICECandidateInit, id int64) error {
 	if pair != nil && id == pair.Id {
+		for !pair.remoteSet {
+			logrus.Warn("waitting makeconnection set remote description")
+			time.Sleep(200 * time.Millisecond)
+		}
 		err := pair.PeerConnection.AddICECandidate(*ca)
 		if err != nil {
 			logrus.Error(err, pair.Id, id)
@@ -247,6 +256,7 @@ func (pair *ConnectionPair) ResponseTCP(resp impl.CoreResponse) {
 	err := <-pair.Exit
 	logrus.Debug("Response TCP")
 	if err != nil {
+		logrus.Error(err)
 		resp.Status = -1
 	}
 

@@ -7,7 +7,7 @@ require (
 	github.com/go-vgo/robotgo v1.0.0-beta5.2 // indirect
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
-	github.com/gorilla/websocket v1.5.0
+	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/jawher/mow.cli v1.2.0
 	github.com/lufia/plan9stats v0.0.0-20220326011226-f1430873d8db // indirect
 	github.com/pion/rtp v1.7.13 // indirect
@@ -20,5 +20,7 @@ require (
 	github.com/suutaku/go-vnc v0.0.0-20220416150217-07183bb95520
 	golang.org/x/crypto v0.0.0-20220411220226-7b82a4e95df4
 	golang.org/x/image v0.0.0-20220413100746-70e8d0d3baa9 // indirect
+	golang.org/x/net v0.0.0-20220412020605-290c469a71a5
 	golang.org/x/term v0.0.0-20220411215600-e5f449aeb171 // indirect
+	nhooyr.io/websocket v1.8.7
 )

@@ -1,61 +1,60 @@
 package utils
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"io"
 	"net"
+	"sync"
 
 	"github.com/sirupsen/logrus"
+	"golang.org/x/net/websocket"
 )
 
-func chanFromConn(conn net.Conn) chan []byte {
-	c := make(chan []byte)
-
+func Pipe(con1 *net.Conn, con2 *net.Conn) {
+	var wg sync.WaitGroup
+	wg.Add(2)
 	go func() {
-		b := make([]byte, 1024)
-
-		for {
-			n, err := conn.Read(b)
-			if n > 0 {
-				res := make([]byte, n)
-				// Copy the buffer so it doesn't get changed while read by the recipient.
-				copy(res, b[:n])
-				c <- res
-			}
-			if err != nil {
-				c <- nil
-				break
-			}
+		defer wg.Done()
+		_, err := io.Copy(*con1, *con2)
+		if err != nil {
+			logrus.Error(err)
 		}
-	}()
+		if con1 != nil {
+			(*con1).Close()
+		}
+		if con2 != nil {
+			(*con2).Close()
+		}
 
-	return c
+		logrus.Debug("io copy 1 closed")
+	}()
+	go func() {
+		defer wg.Done()
+		_, err := io.Copy(*con2, *con1)
+		if err != nil {
+			logrus.Error(err)
+		}
+		if con1 != nil {
+			(*con1).Close()
+		}
+		if con2 != nil {
+			(*con2).Close()
+		}
+		logrus.Debug("io copy 2 closed")
+	}()
+	wg.Wait()
+	logrus.Info("pipe closed")
 }
 
-func Pipe(conn1 net.Conn, conn2 net.Conn) {
-	chan1 := chanFromConn(conn1)
-	chan2 := chanFromConn(conn2)
+func ToNetConn(wsconn *websocket.Conn) *net.Conn {
+	return &[]net.Conn{
+		wsconn,
+	}[0]
+}
 
-	for {
-		select {
-		case b1 := <-chan1:
-			if b1 == nil {
-				return
-			} else {
-				_, err := conn2.Write(b1)
-				if err != nil {
-					logrus.Error(err)
-					return
-				}
-			}
-		case b2 := <-chan2:
-			if b2 == nil {
-				return
-			} else {
-				_, err := conn1.Write(b2)
-				if err != nil {
-					logrus.Error(err)
-					return
-				}
-			}
-		}
-	}
+func HashString(input string) string {
+	h := sha256.New()
+	h.Write([]byte(input))
+	return hex.EncodeToString(h.Sum(nil))
 }

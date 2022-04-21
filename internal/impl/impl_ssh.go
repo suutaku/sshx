@@ -77,9 +77,9 @@ func (dal *SshImpl) Close() {
 	}
 	defer conn.Close()
 	enc := gob.NewEncoder(conn)
-	err = enc.Encode(req)
-	if err != nil {
-		return
+	enc.Encode(req)
+	if dal.conn != nil {
+		(*dal.conn).Close()
 	}
 	logrus.Debug("close ssh impl")
 }
@@ -150,6 +150,7 @@ func (s *SshImpl) RequestPassword(err error) error {
 
 // dial remote sshd with opened wrtc connection
 func (s *SshImpl) dialRemoteAndOpenTerminal() error {
+	logrus.Debug("dialRemoteAndOpenTerminal")
 	c, chans, reqs, err := ssh.NewClientConn(*s.conn, "", &s.config)
 	if err != nil {
 		return err
@@ -332,6 +333,7 @@ type x11request struct {
 }
 
 func x11Request(session *ssh.Session, client *ssh.Client) {
+	logrus.Debug("x11Request")
 	// x11-req Payload
 	payload := x11request{
 		SingleConnection: false,
@@ -362,11 +364,11 @@ func x11Request(session *ssh.Session, client *ssh.Client) {
 }
 
 func forwardX11Socket(channel ssh.Channel) {
+	logrus.Debug("create X11 socket")
 	conn, err := net.Dial("unix", os.Getenv("DISPLAY"))
 	if err != nil {
 		return
 	}
-
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {

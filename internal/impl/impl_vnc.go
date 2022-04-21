@@ -1,15 +1,12 @@
 package impl
 
 import (
-	"context"
 	"encoding/gob"
 	"fmt"
 	"net"
 
 	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"
-	"github.com/suutaku/go-vnc/pkg/config"
-	"github.com/suutaku/go-vnc/pkg/vnc"
 	"github.com/suutaku/sshx/pkg/types"
 )
 
@@ -23,8 +20,6 @@ type VNCImpl struct {
 	localVNCAddr   string
 	hostId         string
 	pairId         string
-	vncServer      *vnc.VNC
-	vncConf        config.Configure
 }
 
 func NewVNCImpl() *VNCImpl {
@@ -37,7 +32,6 @@ func (vnc *VNCImpl) Init(param ImplParam) {
 	vnc.localVNCAddr = fmt.Sprintf("ws://127.0.0.1:%d", param.Config.VNCConf.Websockify.Port)
 	vnc.hostId = param.HostId
 	vnc.pairId = param.PairId
-	vnc.vncConf = param.Config.VNCConf
 }
 
 func (dal *VNCImpl) Code() int32 {
@@ -85,15 +79,13 @@ func (dal *VNCImpl) Dial() error {
 }
 
 func (dal *VNCImpl) Response() error {
-	dal.vncServer = vnc.NewVNC(context.TODO(), dal.vncConf)
-	dal.vncServer.Start()
 	logrus.Debug("VNCResponser response ", dal.localVNCAddr)
 	vnc, _, err := websocket.DefaultDialer.Dial(dal.localVNCAddr, nil)
 	if err != nil {
 		return err
 	}
-	underCon := vnc.UnderlyingConn()
-	dal.conn = &underCon
+
+	dal.conn = &[]net.Conn{vnc.UnderlyingConn()}[0]
 	return nil
 }
 
@@ -107,15 +99,13 @@ func (dal *VNCImpl) Close() {
 	if err != nil {
 		return
 	}
-	enc := gob.NewEncoder(conn)
-	err = enc.Encode(req)
-	if err != nil {
-		return
-	}
 	defer conn.Close()
-	if dal.vncServer != nil {
-		dal.vncServer.Close()
+	enc := gob.NewEncoder(conn)
+	enc.Encode(req)
+	if dal.conn != nil {
+		(*dal.conn).Close()
 	}
+	logrus.Info("vnc impl close")
 }
 
 func (dal *VNCImpl) Conn() *net.Conn {

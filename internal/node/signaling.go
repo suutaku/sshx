@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"path"
-	"time"
 
 	"github.com/pion/webrtc/v3"
 	"github.com/sirupsen/logrus"
@@ -46,15 +45,72 @@ func (node *Node) push(info types.SignalingInfo) error {
 	return nil
 }
 
+func (node *Node) ServeOfferInfo(info types.SignalingInfo) {
+	cvt := impl.CoreRequest{
+		Type: info.RemoteRequestType,
+	}
+	iface := impl.GetImpl(cvt.GetAppCode())
+	param := impl.ImplParam{
+		Config: *node.ConfManager.Conf,
+		PairId: poolId(info),
+	}
+	iface.Init(param)
+	pair := NewConnectionPair(node.ConfManager.Conf.RTCConf, iface, node.ConfManager.Conf.ID, info.Source)
+	node.AddPair(poolId(info), pair)
+	err := node.GetPair(poolId(info)).Response(info)
+	if err != nil {
+		logrus.Error(err)
+		return
+	}
+	node.GetPair(poolId(info)).PeerConnection.OnICECandidate(func(c *webrtc.ICECandidate) {
+		logrus.Debug("send candidate")
+		node.SignalCandidate(info, info.Source, c)
+	})
+
+	awser := node.GetPair(poolId(info)).Anwser(info)
+	if awser == nil {
+		logrus.Error("pair create a nil anwser")
+		return
+	}
+	node.push(*awser)
+}
+
+func (node *Node) ServePush(info types.SignalingInfo) {
+	buf := bytes.NewBuffer(nil)
+	if err := gob.NewEncoder(buf).Encode(info); err != nil {
+		logrus.Error(err)
+		return
+	}
+	resp, err := http.Post(node.ConfManager.Conf.SignalingServerAddr+
+		path.Join("/", "push", info.Target), "application/binary", buf)
+	if err != nil {
+		logrus.Error(err)
+		return
+	}
+	if resp.StatusCode != http.StatusOK {
+		logrus.Errorln("push to ", info.Target, "faild")
+		return
+	}
+}
+
+func (node *Node) ServeCandidateInfo(info types.SignalingInfo) {
+	logrus.Debug("add candidate")
+	node.GetPair(poolId(info)).AddCandidate(&webrtc.ICECandidateInit{Candidate: string(info.Candidate)}, info.ID)
+}
+
+func (node *Node) ServeAnwserInfo(info types.SignalingInfo) {
+	err := node.GetPair(poolId(info)).MakeConnection(info)
+	if err != nil {
+		logrus.Error(err)
+	}
+}
+
 func (node *Node) ServeSignaling() {
 
 	// pull loop
 	go func() {
-		client := http.Client{
-			Timeout: 10 * time.Second,
-		}
 		for {
-			res, err := client.Get(node.ConfManager.Conf.SignalingServerAddr +
+			res, err := http.Get(node.ConfManager.Conf.SignalingServerAddr +
 				path.Join("/", "pull", node.ConfManager.Conf.ID))
 			if err != nil {
 				continue
@@ -68,71 +124,21 @@ func (node *Node) ServeSignaling() {
 			}
 			res.Body.Close()
 			node.sigPull <- info
-			logrus.Debug("pull ok")
 		}
 	}()
 
 	for {
-		client := http.Client{
-			Timeout: 10 * time.Second,
-		}
 		select {
 		case info := <-node.sigPush:
-			go func() {
-				logrus.Debug("start push")
-				buf := bytes.NewBuffer(nil)
-				if err := gob.NewEncoder(buf).Encode(info); err != nil {
-					logrus.Error(err)
-					return
-				}
-				resp, err := client.Post(node.ConfManager.Conf.SignalingServerAddr+
-					path.Join("/", "push", info.Target), "application/binary", buf)
-				if err != nil {
-					logrus.Error(err)
-					return
-				}
-				if resp.StatusCode != http.StatusOK {
-					logrus.Errorln("push to ", info.Target, "faild")
-					return
-				}
-				logrus.Debug("push ok")
-			}()
+			go node.ServePush(info)
 		case info := <-node.sigPull:
 			switch info.Flag {
 			case types.SIG_TYPE_OFFER:
-				cvt := impl.CoreRequest{
-					Type: info.RemoteRequestType,
-				}
-				iface := impl.GetImpl(cvt.GetAppCode())
-				param := impl.ImplParam{
-					Config: *node.ConfManager.Conf,
-					PairId: poolId(info),
-				}
-				iface.Init(param)
-				pair := NewConnectionPair(node.ConfManager.Conf.RTCConf, iface, node.ConfManager.Conf.ID, info.Source)
-				node.AddPair(poolId(info), pair)
-				err := node.GetPair(poolId(info)).Response(info)
-				if err != nil {
-					logrus.Error(err)
-					continue
-				}
-				node.GetPair(poolId(info)).PeerConnection.OnICECandidate(func(c *webrtc.ICECandidate) {
-					logrus.Debug("send candidate")
-					node.SignalCandidate(info, info.Source, c)
-				})
-
-				awser := node.GetPair(poolId(info)).Anwser(info)
-				if awser != nil {
-					node.push(*awser)
-				}
+				go node.ServeOfferInfo(info)
 			case types.SIG_TYPE_CANDIDATE:
-				logrus.Debug("add candidate")
-				node.GetPair(poolId(info)).AddCandidate(&webrtc.ICECandidateInit{Candidate: string(info.Candidate)}, info.ID)
+				go node.ServeCandidateInfo(info)
 			case types.SIG_TYPE_ANSWER:
-				err := node.GetPair(poolId(info)).MakeConnection(info)
-				if err != nil {
-					logrus.Error(err)
-				}
+				go node.ServeAnwserInfo(info)
 			case types.SIG_TYPE_UNKNOWN:
 				logrus.Error("unknow signaling type")
 			}

@@ -1,12 +1,15 @@
 package node
 
 import (
+	"context"
 	"fmt"
+	"net"
 	"net/http"
 
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"
+	"github.com/suutaku/go-vnc/pkg/vnc"
 	"github.com/suutaku/sshx/internal/impl"
 	"github.com/suutaku/sshx/internal/utils"
 )
@@ -19,6 +22,11 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
+func (node *Node) StartVNCServer() {
+	vncServer := vnc.NewVNC(context.TODO(), node.ConfManager.Conf.VNCConf)
+	vncServer.Start()
+}
+
 func (n *Node) ServeHTTPAndWS() {
 	r := mux.NewRouter()
 	s := http.StripPrefix("/", http.FileServer(http.Dir(n.ConfManager.Conf.VNCStaticPath)))
@@ -28,12 +36,12 @@ func (n *Node) ServeHTTPAndWS() {
 
 		deviceId := r.URL.Query()["device"]
 		logrus.Debug(deviceId)
-
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			logrus.Error(err)
 			return
 		}
+
 		defer conn.Close()
 
 		dal := impl.NewVNCImpl()
@@ -49,7 +57,8 @@ func (n *Node) ServeHTTPAndWS() {
 			logrus.Error(err)
 			return
 		}
-		utils.Pipe(conn.UnderlyingConn(), *dal.Conn())
+		underConn := &[]net.Conn{conn.UnderlyingConn()}[0]
+		utils.Pipe(underConn, dal.Conn())
 		logrus.Debug("end of gorutine")
 
 	})
