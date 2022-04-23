@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
 	"github.com/suutaku/sshx/pkg/types"
 )
@@ -37,14 +38,17 @@ func main() {
 	} else {
 		logrus.SetLevel(logrus.InfoLevel)
 	}
-	http.Handle("/pull/", http.StripPrefix("/pull/", pullData()))
-	http.Handle("/push/", http.StripPrefix("/push/", pushData()))
-
 	port := os.Getenv("SSHX_SIGNALING_PORT")
 	if port == "" {
 		port = "11095"
 		logrus.Infof("Defaulting to port %s", port)
 	}
+
+	r := mux.NewRouter()
+	r.Handle("/pull/{self_id}", pullData())
+	r.Handle("/push/{target_id}", pushData())
+
+	http.Handle("/", r)
 
 	logrus.Infof("Listening on port %s", port)
 	logrus.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", port), nil))
@@ -58,24 +62,26 @@ func pushData() http.Handler {
 			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 			return
 		}
+		vars := mux.Vars(r)
 		mu.Lock()
-		if res[r.URL.Path] == nil {
-			logrus.Debug("crete resource for ", r.URL.Path)
-			res[r.URL.Path] = make(chan types.SignalingInfo, 64)
+		if res[vars["target_id"]] == nil {
+			logrus.Debug("crete resource for ", vars["target_id"])
+			res[vars["target_id"]] = make(chan types.SignalingInfo, 64)
 		}
 		mu.Unlock()
 
-		res[r.URL.Path] <- info
-		logrus.Debug("push from ", info.Source, " to ", r.URL.Path, info.Flag)
+		res[vars["target_id"]] <- info
+		logrus.Debug("push from ", info.Source, " to ", vars["target_id"], info.Flag)
 	})
 }
 
 func pullData() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
 		mu.Lock()
-		if res[r.URL.Path] == nil {
-			logrus.Debug("crete resource for ", r.URL.Path, " 2")
-			res[r.URL.Path] = make(chan types.SignalingInfo, 64)
+		if res[vars["self_id"]] == nil {
+			logrus.Debug("crete resource for ", vars["self_id"], " 2")
+			res[vars["self_id"]] = make(chan types.SignalingInfo, 64)
 		}
 		mu.Unlock()
 		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
@@ -83,8 +89,8 @@ func pullData() http.Handler {
 		select {
 		case <-ctx.Done():
 			return
-		case v := <-res[r.URL.Path]:
-			logrus.Debug("pull from ", r.URL.Path, v.Flag)
+		case v := <-res[vars["self_id"]]:
+			logrus.Debug("pull from ", vars["self_id"], v.Flag)
 			w.Header().Add("Content-Type", "application/binary")
 			if err := gob.NewEncoder(w).Encode(v); err != nil {
 				logrus.Error("binary encode failed:", err)

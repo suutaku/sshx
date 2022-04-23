@@ -24,13 +24,12 @@ func (s *Wrapper) Write(b []byte) (int, error) {
 
 type ConnectionPair struct {
 	*webrtc.PeerConnection
-	Id          int64
-	conf        webrtc.Configuration
-	Exit        chan error
-	impl        impl.Impl
-	nodeId      string
-	targetId    string
-	isRemoteSet bool
+	Id       int64
+	conf     webrtc.Configuration
+	Exit     chan error
+	impl     impl.Impl
+	nodeId   string
+	targetId string
 }
 
 func NewConnectionPair(conf webrtc.Configuration, impl impl.Impl, nodeId string, targetId string) *ConnectionPair {
@@ -190,7 +189,6 @@ func (pair *ConnectionPair) Anwser(info types.SignalingInfo) *types.SignalingInf
 		pair.Close()
 		return nil
 	}
-	pair.isRemoteSet = true
 	answer, err := pair.PeerConnection.CreateAnswer(nil)
 	if err != nil {
 		logrus.Error("anwser rtc error:", err)
@@ -226,16 +224,15 @@ func (pair *ConnectionPair) MakeConnection(info types.SignalingInfo) error {
 		pair.Close()
 		return err
 	}
-	pair.isRemoteSet = true
 	pair.Exit <- nil
 	return nil
 }
 
 func (pair *ConnectionPair) AddCandidate(ca *webrtc.ICECandidateInit, id int64) error {
 	if pair != nil && id == pair.Id {
-		for !pair.isRemoteSet {
+		if !pair.IsRemoteDescriptionSet() {
 			logrus.Warn("waiting remote description be set")
-			time.Sleep(200 * time.Millisecond)
+			return fmt.Errorf("remote description NOT set")
 		}
 		err := pair.PeerConnection.AddICECandidate(*ca)
 		if err != nil {
@@ -248,7 +245,7 @@ func (pair *ConnectionPair) AddCandidate(ca *webrtc.ICECandidateInit, id int64) 
 	return nil
 }
 
-func (pair *ConnectionPair) IsRemoteDscripterSet() bool {
+func (pair *ConnectionPair) IsRemoteDescriptionSet() bool {
 	return !(pair.PeerConnection.RemoteDescription() == nil)
 }
 

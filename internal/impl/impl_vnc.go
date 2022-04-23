@@ -84,8 +84,8 @@ func (dal *VNCImpl) Response() error {
 	if err != nil {
 		return err
 	}
-
-	dal.conn = &[]net.Conn{vnc.UnderlyingConn()}[0]
+	underCon := vnc.UnderlyingConn()
+	dal.conn = &underCon
 	return nil
 }
 

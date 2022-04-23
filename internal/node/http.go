@@ -3,7 +3,6 @@ package node
 import (
 	"context"
 	"fmt"
-	"net"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -57,8 +56,8 @@ func (n *Node) ServeHTTPAndWS() {
 			logrus.Error(err)
 			return
 		}
-		underConn := &[]net.Conn{conn.UnderlyingConn()}[0]
-		utils.Pipe(underConn, dal.Conn())
+		underConn := conn.UnderlyingConn()
+		utils.Pipe(&underConn, dal.Conn())
 		logrus.Debug("end of gorutine")
 
 	})
