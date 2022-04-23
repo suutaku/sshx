@@ -51,8 +51,20 @@ func (vnc *SshImpl) Init(param ImplParam) {
 	vnc.pairId = param.PairId
 }
 
-func (dal *SshImpl) Conn() *net.Conn {
-	return dal.conn
+func (dal *SshImpl) DialerReader() io.Reader {
+	return *dal.conn
+}
+
+func (dal *SshImpl) DialerWriter() io.Writer {
+	return *dal.conn
+}
+
+func (dal *SshImpl) ResponserReader() io.Reader {
+	return *dal.conn
+}
+
+func (dal *SshImpl) ResponserWriter() io.Writer {
+	return *dal.conn
 }
 
 func (dal *SshImpl) Code() int32 {

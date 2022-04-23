@@ -3,7 +3,9 @@ package impl
 import (
 	"encoding/gob"
 	"fmt"
+	"io"
 	"net"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"
@@ -15,11 +17,12 @@ import (
 */
 
 type VNCImpl struct {
-	conn           *net.Conn
 	localEntryAddr string
 	localVNCAddr   string
 	hostId         string
 	pairId         string
+	wsconn         *websocket.Conn
+	tcpconn        *net.Conn
 }
 
 func NewVNCImpl() *VNCImpl {
@@ -27,7 +30,7 @@ func NewVNCImpl() *VNCImpl {
 }
 
 func (vnc *VNCImpl) Init(param ImplParam) {
-	vnc.conn = param.Conn
+	vnc.tcpconn = param.Conn
 	vnc.localEntryAddr = fmt.Sprintf("127.0.0.1:%d", param.Config.LocalTCPPort)
 	vnc.localVNCAddr = fmt.Sprintf("ws://127.0.0.1:%d", param.Config.VNCConf.Websockify.Port)
 	vnc.hostId = param.HostId
@@ -73,9 +76,21 @@ func (dal *VNCImpl) Dial() error {
 		return err
 	}
 	dal.pairId = string(resp.PairId)
-	dal.conn = &conn
+	dal.tcpconn = &conn
 
 	return nil
+}
+
+type Wraper struct {
+	websocket.Conn
+}
+
+func (wp Wraper) Read(b []byte) (int, error) {
+	return wp.UnderlyingConn().Read(b)
+}
+
+func (wp Wraper) Write(b []byte) (int, error) {
+	return wp.UnderlyingConn().Write(b)
 }
 
 func (dal *VNCImpl) Response() error {
@@ -84,8 +99,7 @@ func (dal *VNCImpl) Response() error {
 	if err != nil {
 		return err
 	}
-	underCon := vnc.UnderlyingConn()
-	dal.conn = &underCon
+	dal.wsconn = vnc
 	return nil
 }
 
@@ -102,12 +116,37 @@ func (dal *VNCImpl) Close() {
 	defer conn.Close()
 	enc := gob.NewEncoder(conn)
 	enc.Encode(req)
-	if dal.conn != nil {
-		(*dal.conn).Close()
-	}
 	logrus.Info("vnc impl close")
 }
 
-func (dal *VNCImpl) Conn() *net.Conn {
-	return dal.conn
+func (dal *VNCImpl) DialerWriter() io.Writer {
+	for dal.tcpconn == nil {
+		logrus.Warn("DialerWriter watting connection")
+		time.Sleep(200 * time.Millisecond)
+	}
+	return *dal.tcpconn
+}
+
+func (dal *VNCImpl) DialerReader() io.Reader {
+	for dal.tcpconn == nil {
+		logrus.Warn("DialerReader watting connection")
+		time.Sleep(200 * time.Millisecond)
+	}
+	return *dal.tcpconn
+}
+
+func (dal *VNCImpl) ResponserWriter() io.Writer {
+	for dal.wsconn == nil {
+		logrus.Warn("ResponserWriter watting connection")
+		time.Sleep(200 * time.Millisecond)
+	}
+	return Wraper{*dal.wsconn}
+}
+
+func (dal *VNCImpl) ResponserReader() io.Reader {
+	for dal.wsconn == nil {
+		logrus.Warn("ResponserReader watting connection")
+		time.Sleep(200 * time.Millisecond)
+	}
+	return Wraper{*dal.wsconn}
 }

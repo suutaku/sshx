@@ -67,7 +67,6 @@ func (pair *ConnectionPair) Response(info types.SignalingInfo) error {
 	peer.OnDataChannel(func(dc *webrtc.DataChannel) {
 		//dc.Lock()
 		dc.OnOpen(func() {
-			logrus.Info("data channel open 2")
 			err := pair.impl.Response()
 			if err != nil {
 				logrus.Error(err)
@@ -75,18 +74,14 @@ func (pair *ConnectionPair) Response(info types.SignalingInfo) error {
 				return
 			}
 			pair.Exit <- err
-			io.Copy(&Wrapper{dc}, *pair.impl.Conn())
+			logrus.Info("data channel open 2")
+			io.Copy(&Wrapper{dc}, pair.impl.ResponserReader())
 			dc.Close()
 			pair.Close()
 		})
 		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			logrus.Debug("message comes")
-			if pair.impl == nil || pair.impl.Conn() == nil {
-				logrus.Debug("on message impl or impl conn was empty")
-				pair.Close()
-				return
-			}
-			_, err := (*pair.impl.Conn()).Write(msg.Data)
+			_, err := pair.impl.ResponserWriter().Write(msg.Data)
 			if err != nil {
 				logrus.Error("sock write failed:", err)
 				pair.Close()
@@ -120,7 +115,7 @@ func (pair *ConnectionPair) Dial() error {
 	dc.OnOpen(func() {
 		logrus.Info("data channel open 1")
 		pair.Exit <- nil
-		_, err := io.Copy(&Wrapper{dc}, *pair.impl.Conn())
+		_, err := io.Copy(&Wrapper{dc}, pair.impl.DialerReader())
 		if err != nil {
 			logrus.Error(err)
 			pair.Exit <- err
@@ -129,7 +124,7 @@ func (pair *ConnectionPair) Dial() error {
 		}
 	})
 	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-		_, err := (*pair.impl.Conn()).Write(msg.Data)
+		_, err := pair.impl.DialerWriter().Write(msg.Data)
 		if err != nil {
 			logrus.Error("sock write failed:", err)
 			pair.Close()
@@ -258,7 +253,7 @@ func (pair *ConnectionPair) ResponseTCP(resp impl.CoreResponse) {
 		resp.Status = -1
 	}
 
-	enc := gob.NewEncoder(*pair.impl.Conn())
+	enc := gob.NewEncoder(pair.impl.DialerWriter())
 	err = enc.Encode(resp)
 	if err != nil {
 		logrus.Error(err)

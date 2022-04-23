@@ -57,7 +57,8 @@ func (n *Node) ServeHTTPAndWS() {
 			return
 		}
 		underConn := conn.UnderlyingConn()
-		utils.Pipe(&underConn, dal.Conn())
+		// utils.Pipe(&underConn, dal.Conn())
+		utils.PipeWR(underConn, dal.DialerReader(), underConn, dal.DialerWriter())
 		logrus.Debug("end of gorutine")
 
 	})

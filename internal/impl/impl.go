@@ -1,6 +1,7 @@
 package impl
 
 import (
+	"io"
 	"net"
 
 	"github.com/suutaku/sshx/pkg/conf"
@@ -11,8 +12,14 @@ type Impl interface {
 	// set implementation specifiy configure
 	Init(ImplParam)
 	Code() int32
-	// Get connnection
-	Conn() *net.Conn
+	// Writer of dialer
+	DialerWriter() io.Writer
+	// Writer of responser
+	ResponserWriter() io.Writer
+	// Reader of dialer
+	DialerReader() io.Reader
+	// Reader of responser
+	ResponserReader() io.Reader
 	// Response of remote device call
 	Response() error
 	// Call remote device

@@ -11,6 +11,22 @@ import (
 	"golang.org/x/net/websocket"
 )
 
+func PipeWR(reader1, reader2 io.Reader, writer1, writer2 io.Writer) {
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		io.Copy(writer1, reader2)
+	}()
+
+	go func() {
+		defer wg.Done()
+		io.Copy(writer2, reader1)
+	}()
+	wg.Wait()
+	logrus.Info("pipe closed")
+}
+
 func Pipe(con1 *net.Conn, con2 *net.Conn) {
 	var wg sync.WaitGroup
 	wg.Add(2)

@@ -2,6 +2,7 @@ package impl
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"time"
 
@@ -49,6 +50,18 @@ func (dal *SfsImpl) Response() error {
 
 func (dal *SfsImpl) Close() {}
 
-func (dal *SfsImpl) Conn() *net.Conn {
-	return nil
+func (dal *SfsImpl) DialerReader() io.Reader {
+	return *dal.conn
+}
+
+func (dal *SfsImpl) DialerWriter() io.Writer {
+	return *dal.conn
+}
+
+func (dal *SfsImpl) ResponserReader() io.Reader {
+	return *dal.conn
+}
+
+func (dal *SfsImpl) ResponserWriter() io.Writer {
+	return *dal.conn
 }

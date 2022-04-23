@@ -3,6 +3,7 @@ package impl
 import (
 	"encoding/gob"
 	"fmt"
+	"io"
 	"net"
 
 	"github.com/sirupsen/logrus"
@@ -115,6 +116,18 @@ func (proxy *ProxyImpl) Close() {
 	proxy.running = false
 }
 
-func (proxy *ProxyImpl) Conn() *net.Conn {
-	return proxy.conn
+func (dal *ProxyImpl) DialerReader() io.Reader {
+	return *dal.conn
+}
+
+func (dal *ProxyImpl) DialerWriter() io.Writer {
+	return *dal.conn
+}
+
+func (dal *ProxyImpl) ResponserReader() io.Reader {
+	return *dal.conn
+}
+
+func (dal *ProxyImpl) ResponserWriter() io.Writer {
+	return *dal.conn
 }

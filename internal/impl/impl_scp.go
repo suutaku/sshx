@@ -3,6 +3,7 @@ package impl
 import (
 	"encoding/gob"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"os"
@@ -142,8 +143,20 @@ func (dal *ScpImpl) Close() {
 
 }
 
-func (dal *ScpImpl) Conn() *net.Conn {
-	return dal.conn
+func (dal *ScpImpl) DialerReader() io.Reader {
+	return *dal.conn
+}
+
+func (dal *ScpImpl) DialerWriter() io.Writer {
+	return *dal.conn
+}
+
+func (dal *ScpImpl) ResponserReader() io.Reader {
+	return *dal.conn
+}
+
+func (dal *ScpImpl) ResponserWriter() io.Writer {
+	return *dal.conn
 }
 
 func (dal *ScpImpl) dialAndCopyFiles() error {
