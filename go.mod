@@ -16,11 +16,10 @@ require (
 	github.com/shirou/gopsutil/v3 v3.22.3 // indirect
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/viper v1.11.0
-	github.com/suutaku/go-vnc v0.0.0-20220421150208-0da2b8e22ab9
+	github.com/suutaku/go-vnc v0.0.0-20220423131932-dd675a6c4e62
+	github.com/tinyzimmer/go-gst v0.2.32 // indirect
 	golang.org/x/crypto v0.0.0-20220411220226-7b82a4e95df4
 	golang.org/x/image v0.0.0-20220413100746-70e8d0d3baa9 // indirect
 	golang.org/x/net v0.0.0-20220420153159-1850ba15e1be
 	golang.org/x/term v0.0.0-20220411215600-e5f449aeb171 // indirect
 )
-
-replace github.com/suutaku/go-vnc => /Users/john/Desktop/work/go-vnc

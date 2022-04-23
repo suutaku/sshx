@@ -435,8 +435,11 @@ github.com/stretchr/testify v1.7.1 h1:5TQK59W5E3v0r2duFAb7P95B6hEeOyEnHRa8MjYSMT
 github.com/stretchr/testify v1.7.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/subosito/gotenv v1.2.0 h1:Slr1R9HxAlEKefgq5jn9U+DnETlIUa6HfgEzj0g5d7s=
 github.com/subosito/gotenv v1.2.0/go.mod h1:N0PQaV/YGNqwC0u51sEeR/aUtSLEXKX9iv69rRypqCw=
+github.com/suutaku/go-vnc v0.0.0-20220423131932-dd675a6c4e62 h1:2wXGS9AP+l0uxdtntM8Sx4cDxup1kzrkdf2o3nBO73M=
+github.com/suutaku/go-vnc v0.0.0-20220423131932-dd675a6c4e62/go.mod h1:yZJo30P6WmVSmzBKq+v8vZA8/eBhpj/vGivHfX5zxpc=
 github.com/suutaku/screenshot v0.0.0-20220422154633-c49e77dbf1a9 h1:OVWxa+xIFSTPFECPjwRQmi4USV6+dZYPDCayJ+Xbg/w=
 github.com/suutaku/screenshot v0.0.0-20220422154633-c49e77dbf1a9/go.mod h1:49NYgmlcCHvXdOkngEoXIeLxMLV9MrBfl4vilpwer/E=
+github.com/tinyzimmer/go-gst v0.2.32/go.mod h1:V4h+HPS3mVGSwUJ7IBi3WAkJWITZasebERyqk3TEXUM=
 github.com/tklauser/go-sysconf v0.3.9/go.mod h1:11DU/5sG7UexIrp/O6g35hrWzu0JxlwQ3LSFUzyeuhs=
 github.com/tklauser/go-sysconf v0.3.10 h1:IJ1AZGZRWbY8T5Vfk04D9WOA5WSejdflXxP03OUqALw=
 github.com/tklauser/go-sysconf v0.3.10/go.mod h1:C8XykCvCb+Gn0oNCWPIlcb0RuglQTYaQ2hGm7jmxEFk=
