@@ -95,7 +95,8 @@ export default class Cursor {
             this._updatePosition();
         } else {
             let url = this._canvas.toDataURL();
-            this._target.style.cursor = 'url(' + url + ')' + hotx + ' ' + hoty + ', default';
+           // this._target.style.cursor = 'url(' + url + ')' + hotx + ' ' + hoty + ', default';
+            this._target.style.cursor = 'default';
         }
     }
 
