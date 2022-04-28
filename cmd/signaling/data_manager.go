@@ -9,18 +9,20 @@ import (
 )
 
 const (
-	LIFE_TIME         = time.Second * 15
-	MAX_BUFFER_NUMBER = 64
+	LIFE_TIME_IN_SECOND = 15
+	MAX_BUFFER_NUMBER   = 64
 )
 
 type DManager struct {
 	datas map[string]chan types.SignalingInfo
 	mu    sync.Mutex
+	alive map[string]int
 }
 
 func NewDManager() *DManager {
 	return &DManager{
 		datas: make(map[string]chan types.SignalingInfo),
+		alive: make(map[string]int),
 	}
 }
 
@@ -30,23 +32,41 @@ func (dm *DManager) Get(id string) chan types.SignalingInfo {
 	return dm.datas[id]
 }
 
+func (dm *DManager) Clean(id string) {
+	dm.mu.Lock()
+	defer dm.mu.Unlock()
+	close(dm.datas[id])
+	delete(dm.datas, id)
+	delete(dm.alive, id)
+}
+
+func (dm *DManager) resetAlive(id string) {
+	dm.mu.Lock()
+	defer dm.mu.Unlock()
+	dm.alive[id] = LIFE_TIME_IN_SECOND
+}
+
 func (dm *DManager) Set(id string, info types.SignalingInfo) {
 	if dm.datas[id] == nil {
 		dm.mu.Lock()
-		defer dm.mu.Unlock()
 		dm.datas[id] = make(chan types.SignalingInfo, MAX_BUFFER_NUMBER)
-		go func() {
+		dm.mu.Unlock()
+		dm.resetAlive(id)
+		go func(dmc *DManager) {
 			logrus.Debug("create watch dog for ", id)
-			time.Sleep(LIFE_TIME)
-			logrus.Debug("info got timeout for ", id)
-			dm.mu.Lock()
-			defer dm.mu.Unlock()
-			close(dm.datas[id])
-			delete(dm.datas, id)
-		}()
+			for dmc.alive[id] > 0 {
+				time.Sleep(time.Second)
+				dmc.mu.Lock()
+				dmc.alive[id]--
+				dmc.mu.Unlock()
+			}
+			logrus.Debug("execute watch dog for ", id)
+			dm.Clean(id)
+		}(dm)
 	}
 	select {
 	case dm.datas[id] <- info:
+		dm.resetAlive(id)
 	default:
 	}
 }
