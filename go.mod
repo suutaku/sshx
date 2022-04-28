@@ -17,7 +17,6 @@ require (
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/viper v1.11.0
 	github.com/suutaku/go-vnc v0.0.0-20220423131932-dd675a6c4e62
-	github.com/tinyzimmer/go-gst v0.2.32 // indirect
 	golang.org/x/crypto v0.0.0-20220411220226-7b82a4e95df4
 	golang.org/x/image v0.0.0-20220413100746-70e8d0d3baa9 // indirect
 	golang.org/x/net v0.0.0-20220420153159-1850ba15e1be

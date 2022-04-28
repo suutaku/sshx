@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"path"
+	"time"
 
 	"github.com/pion/webrtc/v3"
 	"github.com/sirupsen/logrus"
@@ -113,12 +114,14 @@ func (node *Node) ServeSignaling() {
 			res, err := http.Get(node.ConfManager.Conf.SignalingServerAddr +
 				path.Join("/", "pull", node.ConfManager.Conf.ID))
 			if err != nil {
+				time.Sleep(1 * time.Second)
 				continue
 			}
 			var info types.SignalingInfo
 			if err = gob.NewDecoder(res.Body).Decode(&info); err != nil {
 				if err != nil {
 					res.Body.Close()
+					time.Sleep(1 * time.Second)
 					continue
 				}
 			}
