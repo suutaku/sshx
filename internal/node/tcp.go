@@ -1,6 +1,7 @@
 package node
 
 import (
+	"bytes"
 	"encoding/gob"
 	"fmt"
 	"net"
@@ -34,6 +35,7 @@ func (node *Node) ServeTCP() {
 
 		switch tmp.GetOptionCode() {
 		case types.OPTION_TYPE_UP:
+			logrus.Debug("up option")
 			iface := impl.GetImpl(tmp.GetAppCode())
 			param := impl.ImplParam{
 				Conn:   &sock,
@@ -53,7 +55,20 @@ func (node *Node) ServeTCP() {
 			go pair.ResponseTCP(*resp)
 
 		case types.OPTION_TYPE_DOWN:
+			logrus.Debug("down option")
 			node.RemovePair(string(tmp.PairId))
+		case types.OPTION_TYPE_STAT:
+			logrus.Debug("stat option")
+			iface := impl.GetImpl(tmp.GetAppCode())
+			param := impl.ImplParam{
+				Conn:   &sock,
+				Config: *node.ConfManager.Conf,
+			}
+			iface.Init(param)
+			res := node.stm.Get()
+			resp := impl.NewCoreResponse(iface.Code(), types.OPTION_TYPE_STAT)
+			gob.NewEncoder(bytes.NewBuffer(resp.Payload)).Encode(res)
+			gob.NewEncoder(iface.DialerWriter()).Encode(resp)
 		}
 
 	}

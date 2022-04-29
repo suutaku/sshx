@@ -111,6 +111,27 @@ func cmdConnect(cmd *cli.Cmd) {
 	}
 }
 
+func cmdMount(cmd *cli.Cmd) {}
+
+func cmdStatus(cmd *cli.Cmd) {
+	// cmd.Spec = "[-t]"
+	// typeFilter := cmd.StringOpt("t type","","application type filter")
+	cmd.Action = func() {
+		cm := conf.NewConfManager(getRootPath())
+		dailer := impl.NewStatImpl()
+		defer dailer.Close()
+		param := impl.ImplParam{
+			Config: *cm.Conf,
+		}
+		dailer.Init(param)
+		err := dailer.Dial()
+		if err != nil {
+			logrus.Info(err)
+			return
+		}
+	}
+}
+
 func cmdCopy(cmd *cli.Cmd) {
 	cmd.Spec = "[ -i ] SRC DEST"
 	srcPath := cmd.StringArg("SRC", "", "[username]@[host]:/path")
@@ -150,8 +171,9 @@ func cmdCopy(cmd *cli.Cmd) {
 }
 
 func cmdStartProxy(cmd *cli.Cmd) {
-	cmd.Spec = "-P ADDR"
+	cmd.Spec = "-P [-d] ADDR"
 	proxyPort := cmd.IntOpt("P", 0, "local proxy port")
+	detach := cmd.BoolOpt("d", false, "detach process")
 	addr := cmd.StringArg("ADDR", "", "remote target address [username]@[host]:[port]")
 	cmd.Action = func() {
 		if proxyPort == nil || *proxyPort == 0 {
@@ -172,6 +194,14 @@ func cmdStartProxy(cmd *cli.Cmd) {
 		}
 		dailer.Init(param)
 		dailer.SetProxyPort(int32(*proxyPort))
+		if *detach {
+			go func() {
+				if err := dailer.Dial(); err != nil {
+					logrus.Debug(err)
+				}
+			}()
+			return
+		}
 		if err := dailer.Dial(); err != nil {
 			logrus.Debug(err)
 		}
@@ -207,6 +237,7 @@ func main() {
 	app.Command("connect", "connect to remote host", cmdConnect)
 	app.Command("copy", "copy files or directory from/to remote host", cmdCopy)
 	app.Command("proxy", "start proxy", cmdProxy)
+	app.Command("status", "get status", cmdStatus)
 	app.Run(os.Args)
 
 }

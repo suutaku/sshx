@@ -3,6 +3,7 @@ package types
 const (
 	OPTION_TYPE_UP = iota
 	OPTION_TYPE_DOWN
+	OPTION_TYPE_STAT
 )
 
 const (
@@ -11,6 +12,7 @@ const (
 	APP_TYPE_SCP
 	APP_TYPE_SFS
 	APP_TYPE_PROXY
+	APP_TYPE_STAT
 )
 
 // some signaling request type

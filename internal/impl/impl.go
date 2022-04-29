@@ -3,9 +3,12 @@ package impl
 import (
 	"io"
 	"net"
+	"reflect"
 
 	"github.com/suutaku/sshx/pkg/conf"
 )
+
+const flagLen = 8
 
 // Impl represents an application implementation
 type Impl interface {
@@ -47,47 +50,62 @@ type CoreRequest struct {
 
 func NewCoreRequest(appCode, optCode int32) *CoreRequest {
 	return &CoreRequest{
-		Type: (appCode << 1) | optCode,
+		Type: (appCode << flagLen) | optCode,
 	}
 }
 
 func (cr *CoreRequest) GetAppCode() int32 {
-	return cr.Type >> 1
+	return cr.Type >> flagLen
 }
 
 func (cr *CoreRequest) GetOptionCode() int32 {
-	return cr.Type & 0x01
+	return cr.Type & 0xff
 }
 
 // Response struct which recive from Local TCP listenner
 type CoreResponse struct {
-	Type   int32 // Request type defined on types
-	PairId []byte
-	Status int32
+	Type    int32 // Request type defined on types
+	PairId  []byte
+	Status  int32
+	Payload []byte
 }
 
 func NewCoreResponse(appCode, optCode int32) *CoreResponse {
 	return &CoreResponse{
-		Type: (appCode << 1) | optCode,
+		Type: (appCode << flagLen) | optCode,
 	}
 }
 
 func (cr *CoreResponse) GetAppCode() int32 {
-	return cr.Type >> 1
+	return cr.Type >> flagLen
 }
 
 func (cr *CoreResponse) GetOptionCode() int32 {
-	return cr.Type & 0x01
+	return cr.Type & 0xff
 }
 
-var enabledApp = []Impl{
+var registeddApp = []Impl{
 	&SshImpl{},
 	&VNCImpl{},
 	&ScpImpl{},
 	&SfsImpl{},
 	&ProxyImpl{},
+	&StatImpl{},
 }
 
 func GetImpl(code int32) Impl {
-	return enabledApp[code]
+	for _, v := range registeddApp {
+		if v.Code() == code {
+			return v
+		}
+	}
+	return nil
+}
+
+func GetImplName(code int32) string {
+	if t := reflect.TypeOf(GetImpl(code)); t.Kind() == reflect.Ptr {
+		return "*" + t.Elem().Name()
+	} else {
+		return t.Name()
+	}
 }
