@@ -28,7 +28,7 @@ func (node *Node) ServeTCP() {
 		dec := gob.NewDecoder(sock)
 		err = dec.Decode(&tmp)
 		if err != nil {
-			logrus.Debug("read not ok")
+			logrus.Debug("read not ok", err)
 			sock.Close()
 			continue
 		}
@@ -67,8 +67,16 @@ func (node *Node) ServeTCP() {
 			iface.Init(param)
 			res := node.stm.Get()
 			resp := impl.NewCoreResponse(iface.Code(), types.OPTION_TYPE_STAT)
-			gob.NewEncoder(bytes.NewBuffer(resp.Payload)).Encode(res)
-			gob.NewEncoder(iface.DialerWriter()).Encode(resp)
+			buf := bytes.Buffer{}
+			err := gob.NewEncoder(&buf).Encode(res)
+			if err != nil {
+				logrus.Error(err)
+			}
+			resp.Payload = buf.Bytes()
+			err = gob.NewEncoder(iface.DialerWriter()).Encode(resp)
+			if err != nil {
+				logrus.Error(err)
+			}
 		}
 
 	}

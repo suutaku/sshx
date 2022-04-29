@@ -215,6 +215,18 @@ func (s *SshImpl) dialRemoteAndOpenTerminal() error {
 	defer terminal.Restore(fd, state)
 
 	if err := session.Wait(); err != nil {
+		req := NewCoreRequest(s.Code(), types.OPTION_TYPE_DOWN)
+		req.PairId = []byte(s.pairId)
+		req.Payload = []byte(s.hostId)
+
+		// new request, beacuase originnal ssh connection was closed
+		conn, err := net.Dial("tcp", s.localEntryAddr)
+		if err != nil {
+			return err
+		}
+		defer conn.Close()
+		enc := gob.NewEncoder(conn)
+		enc.Encode(req)
 		if e, ok := err.(*ssh.ExitError); ok {
 			switch e.ExitStatus() {
 			case 130:

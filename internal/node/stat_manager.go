@@ -20,17 +20,23 @@ func (stm *StatManager) Put(stat types.Status) {
 		logrus.Warn("empty paird id for status: ", stat)
 		return
 	}
+	if stm.stats[stat.PairId].PairId == stat.PairId {
+		return
+	}
 	stm.stats[stat.PairId] = stat
+	logrus.Debug("put status")
 }
 
 func (stm *StatManager) Get() []types.Status {
 	ret := make([]types.Status, 0)
+
 	for _, v := range stm.stats {
-		ret = append(ret, v)
+		ret = append(ret, []types.Status{v}...)
 	}
 	return ret
 }
 
 func (stm *StatManager) Remove(pid string) {
 	delete(stm.stats, pid)
+	logrus.Debug("remove status")
 }

@@ -29,6 +29,10 @@ type SfsImpl struct {
 	sshfs          *fs.SSHFS
 }
 
+func NewSfsImpl() *SfsImpl {
+	return &SfsImpl{}
+}
+
 func (vnc *SfsImpl) Init(param ImplParam) {
 	vnc.config = ssh.ClientConfig{
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
@@ -45,6 +49,14 @@ func (dal *SfsImpl) SetPairId(id string) {
 	if dal.pairId == "" {
 		dal.pairId = id
 	}
+}
+
+func (dal *SfsImpl) SetRoot(root string) {
+	dal.root = root
+}
+
+func (dal *SfsImpl) SetMountPoint(mtp string) {
+	dal.mountPoint = mtp
 }
 
 func (dal *SfsImpl) Code() int32 {
@@ -65,6 +77,7 @@ func (dal *SfsImpl) Dial() error {
 		return err
 	}
 	logrus.Debug("waitting TCP Response")
+	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 	resp := CoreResponse{}
 	dec := gob.NewDecoder(conn)
 	err = dec.Decode(&resp)
@@ -106,6 +119,13 @@ func (s *SfsImpl) RequestPassword(err error) error {
 }
 
 func (dal *SfsImpl) Response() error {
+	logrus.Debug("Dail local addr ", dal.localSSHAddr)
+	conn, err := net.Dial("tcp", dal.localSSHAddr)
+	if err != nil {
+		return err
+	}
+	logrus.Debug("Dail local addr ", dal.localSSHAddr, " success")
+	dal.conn = &conn
 	return nil
 }
 
@@ -153,6 +173,9 @@ func (dal *SfsImpl) dialAndMount() error {
 	logrus.Debug("conn ok")
 
 	dal.sshfs = fs.NewSSHFSWithConn(*dal.conn, dal.config, dal.root, dal.mountPoint)
+	if dal.sshfs == nil {
+		return fmt.Errorf("cannot create sshfs")
+	}
 	err := dal.sshfs.Mount()
 	if err != nil {
 		dal.sshfs.Unmount()

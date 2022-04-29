@@ -15,22 +15,25 @@ type ProxyImpl struct {
 	conn           *net.Conn
 	localEntryAddr string
 	localSSHAddr   string
-	hostId         string
-	pairId         string
+	hostId         []string
+	pairId         []string
 	proxyPort      int32
 	running        bool
 }
 
 func NewProxyImpl() *ProxyImpl {
-	return &ProxyImpl{}
+	return &ProxyImpl{
+		pairId: make([]string, 0),
+		hostId: make([]string, 0),
+	}
 }
 
 func (proxy *ProxyImpl) Init(param ImplParam) {
 	proxy.conn = param.Conn
 	proxy.localEntryAddr = fmt.Sprintf("127.0.0.1:%d", param.Config.LocalTCPPort)
 	proxy.localSSHAddr = fmt.Sprintf("127.0.0.1:%d", param.Config.LocalSSHPort)
-	proxy.hostId = param.HostId
-	proxy.pairId = param.PairId
+	proxy.hostId = append(proxy.hostId, param.HostId)
+	proxy.pairId = append(proxy.pairId, param.PairId)
 }
 
 func (proxy *ProxyImpl) Code() int32 {
@@ -38,9 +41,7 @@ func (proxy *ProxyImpl) Code() int32 {
 }
 
 func (proxy *ProxyImpl) SetPairId(id string) {
-	if proxy.pairId == "" {
-		proxy.pairId = id
-	}
+	proxy.pairId = append(proxy.pairId, id)
 }
 
 func (proxy *ProxyImpl) doDial(inconn *net.Conn) error {
@@ -50,8 +51,8 @@ func (proxy *ProxyImpl) doDial(inconn *net.Conn) error {
 	}
 
 	req := NewCoreRequest(proxy.Code(), types.OPTION_TYPE_UP)
-	req.PairId = []byte(proxy.pairId)
-	req.Payload = []byte(proxy.hostId)
+	req.PairId = []byte(proxy.pairId[len(proxy.pairId)-1])
+	req.Payload = []byte(proxy.hostId[len(proxy.hostId)-1])
 
 	enc := gob.NewEncoder(conn)
 	err = enc.Encode(req)
@@ -69,8 +70,18 @@ func (proxy *ProxyImpl) doDial(inconn *net.Conn) error {
 	if resp.Status != 0 {
 		return err
 	}
-	proxy.pairId = string(resp.PairId)
+	proxy.pairId = append(proxy.pairId, string(resp.PairId))
 	utils.Pipe(inconn, &conn)
+	quitReq := NewCoreRequest(proxy.Code(), types.OPTION_TYPE_DOWN)
+	quitReq.PairId = resp.PairId
+
+	QuitConn, err := net.Dial("tcp", proxy.localEntryAddr)
+	if err != nil {
+		return err
+	}
+	defer QuitConn.Close()
+	gob.NewEncoder(QuitConn).Encode(quitReq)
+	logrus.Debug("doDial quit")
 	return nil
 }
 
@@ -114,20 +125,45 @@ func (proxy *ProxyImpl) Close() {
 		(*proxy.conn).Close()
 	}
 	proxy.running = false
+	for _, v := range proxy.pairId {
+		quitReq := NewCoreRequest(proxy.Code(), types.OPTION_TYPE_DOWN)
+		quitReq.PairId = []byte(v)
+
+		// new request, beacuase originnal ssh connection was closed
+		QuitConn, err := net.Dial("tcp", proxy.localEntryAddr)
+		if err != nil {
+			return
+		}
+		defer QuitConn.Close()
+		gob.NewEncoder(QuitConn).Encode(quitReq)
+
+	}
 }
 
 func (dal *ProxyImpl) DialerReader() io.Reader {
+	if dal.conn == nil {
+		return nil
+	}
 	return *dal.conn
 }
 
 func (dal *ProxyImpl) DialerWriter() io.Writer {
+	if dal.conn == nil {
+		return nil
+	}
 	return *dal.conn
 }
 
 func (dal *ProxyImpl) ResponserReader() io.Reader {
+	if dal.conn == nil {
+		return nil
+	}
 	return *dal.conn
 }
 
 func (dal *ProxyImpl) ResponserWriter() io.Writer {
+	if dal.conn == nil {
+		return nil
+	}
 	return *dal.conn
 }
