@@ -5,12 +5,13 @@ import (
 
 	cli "github.com/jawher/mow.cli"
 	"github.com/sirupsen/logrus"
+	"github.com/suutaku/sshx/internal/utils"
 )
 
 var defaultHomePath = "/etc/sshx"
 
 func main() {
-	if debugOn() {
+	if utils.DebugOn() {
 		logrus.SetLevel(logrus.DebugLevel)
 	} else {
 		logrus.SetLevel(logrus.InfoLevel)

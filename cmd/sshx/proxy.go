@@ -25,9 +25,10 @@ func cmdStopProxy(cmd *cli.Cmd) {
 }
 
 func cmdStartProxy(cmd *cli.Cmd) {
-	cmd.Spec = "-P [-d] ADDR"
+	// cmd.Spec = "-P [-d] ADDR"
+	cmd.Spec = "-P ADDR"
 	proxyPort := cmd.IntOpt("P", 0, "local proxy port")
-	detach := cmd.BoolOpt("d", false, "detach process")
+	// detach := cmd.BoolOpt("d", false, "detach process")
 	addr := cmd.StringArg("ADDR", "", "remote target address [username]@[host]:[port]")
 	cmd.Action = func() {
 		if proxyPort == nil || *proxyPort == 0 {
@@ -48,14 +49,6 @@ func cmdStartProxy(cmd *cli.Cmd) {
 		}
 		dialer.Init(param)
 		dialer.SetProxyPort(int32(*proxyPort))
-		if *detach {
-			go func() {
-				if err := dialer.Dial(); err != nil {
-					logrus.Debug(err)
-				}
-			}()
-			return
-		}
 		if err := dialer.Dial(); err != nil {
 			logrus.Debug(err)
 		}

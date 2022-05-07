@@ -4,13 +4,21 @@ import (
 	"encoding/gob"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
+	"os"
+	"os/user"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/hanwen/go-fuse/v2/fs"
+	"github.com/pkg/sftp"
 	"github.com/sirupsen/logrus"
-	"github.com/suutaku/go-sshfs/pkg/fs"
+
+	"github.com/suutaku/go-sshfs/pkg/sshfs"
+
+	"github.com/suutaku/sshx/internal/utils"
 	"github.com/suutaku/sshx/pkg/types"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/term"
@@ -26,7 +34,7 @@ type SfsImpl struct {
 	retry          int
 	root           string
 	mountPoint     string
-	sshfs          *fs.SSHFS
+	sshfs          *sshfs.Sshfs
 }
 
 func NewSfsImpl() *SfsImpl {
@@ -40,7 +48,7 @@ func (vnc *SfsImpl) Init(param ImplParam) {
 	}
 	vnc.conn = param.Conn
 	vnc.localEntryAddr = fmt.Sprintf("127.0.0.1:%d", param.Config.LocalTCPPort)
-	vnc.localSSHAddr = fmt.Sprintf("127.0.0.1:%d", param.Config.LocalTCPPort)
+	vnc.localSSHAddr = fmt.Sprintf("127.0.0.1:%d", param.Config.LocalSSHPort)
 	vnc.hostId = param.HostId
 	vnc.pairId = param.PairId
 }
@@ -77,7 +85,6 @@ func (dal *SfsImpl) Dial() error {
 		return err
 	}
 	logrus.Debug("waitting TCP Response")
-	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 	resp := CoreResponse{}
 	dec := gob.NewDecoder(conn)
 	err = dec.Decode(&resp)
@@ -94,11 +101,50 @@ func (dal *SfsImpl) Dial() error {
 	if err != nil {
 		err = dal.RequestPassword(err)
 		if err == nil {
+			dal.Close()
 			return dal.Dial()
 		}
 		return err
 	}
 	return nil
+}
+
+func (dal *SfsImpl) DecodeAddress(addrStr string) error {
+	var userName, addr string
+	sps := strings.Split(addrStr, "@")
+	if len(sps) < 2 {
+		user, err := user.Current()
+		if err != nil {
+			return err
+		}
+		userName = user.Username
+		addr = sps[0]
+	} else {
+		userName = sps[0]
+		addr = sps[1]
+	}
+	dal.config.User = userName
+	dal.hostId = addr
+	return nil
+}
+
+func (dal *SfsImpl) PrivateKeyOption(keyPath string) {
+	if keyPath == "" {
+		home := os.Getenv("HOME")
+		keyPath = home + "/.ssh/id_rsa"
+	}
+	pemBytes, err := ioutil.ReadFile(keyPath)
+	if err != nil {
+		logrus.Printf("Reading private key file failed %v", err)
+		return
+	}
+	// create signer
+	signer, err := SignerFromPem(pemBytes, nil)
+	if err != nil {
+		logrus.Error(err)
+		return
+	}
+	dal.config.Auth = append(dal.config.Auth, ssh.PublicKeys(signer))
 }
 
 func (s *SfsImpl) RequestPassword(err error) error {
@@ -132,7 +178,7 @@ func (dal *SfsImpl) Response() error {
 func (dal *SfsImpl) Close() {
 
 	if dal.sshfs != nil {
-		dal.sshfs.Close()
+		dal.sshfs.Unmount()
 	}
 	req := NewCoreRequest(dal.Code(), types.OPTION_TYPE_DOWN)
 	req.PairId = []byte(dal.pairId)
@@ -168,17 +214,35 @@ func (dal *SfsImpl) ResponserWriter() io.Writer {
 }
 
 func (dal *SfsImpl) dialAndMount() error {
-	logrus.Debug("create scp conn from dal.conn")
+	// logrus.Debug("create sshfs conn from dal.conn")
+	c, chans, reqs, err := ssh.NewClientConn(*dal.conn, "", &dal.config)
+	if err != nil {
+		return err
+	}
+	sshClient := ssh.NewClient(c, chans, reqs)
+	if sshClient == nil {
+		return fmt.Errorf("cannot create ssh client")
+	}
+	sftpClient, err := sftp.NewClient(sshClient)
+	if err != nil {
+		return err
+	}
 
-	logrus.Debug("conn ok")
-
-	dal.sshfs = fs.NewSSHFSWithConn(*dal.conn, dal.config, dal.root, dal.mountPoint)
+	dal.sshfs = sshfs.NewSshfs(sftpClient, dal.root, dal.mountPoint, dal.hostId)
 	if dal.sshfs == nil {
 		return fmt.Errorf("cannot create sshfs")
 	}
-	err := dal.sshfs.Mount()
-	if err != nil {
-		dal.sshfs.Unmount()
+	opts := &fs.Options{}
+	if utils.DebugOn() {
+		opts.Debug = true
 	}
-	return nil
+	err = dal.sshfs.Mount(opts)
+	if err != nil {
+		logrus.Error(err)
+	}
+	dal.sshfs.Unmount()
+	dal.Close()
+	logrus.Info("close sfs impl")
+
+	return err
 }

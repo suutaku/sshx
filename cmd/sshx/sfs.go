@@ -29,9 +29,10 @@ func splitMountPoint(mtopt string) (root, mt string) {
 }
 
 func cmdMount(cmd *cli.Cmd) {
-	cmd.Spec = "HOST MOUNTOPTION"
+	cmd.Spec = "[-i] HOST MOUNTOPTION"
 	host := cmd.StringArg("HOST", "", "moumt root path")
 	mtpOpt := cmd.StringArg("MOUNTOPTION", "", "moumt option with [root]:[mount point]")
+	ident := cmd.StringOpt("i identification", "", "a private path, default empty for ~/.ssh/id_rsa")
 	cmd.Action = func() {
 		if host == nil || *(host) == "" {
 			return
@@ -40,16 +41,23 @@ func cmdMount(cmd *cli.Cmd) {
 		dialer := impl.NewSfsImpl()
 		param := impl.ImplParam{
 			Config: *cm.Conf,
-			HostId: *host,
 		}
 		dialer.Init(param)
+		err := dialer.DecodeAddress(*host)
+		if err != nil {
+			logrus.Error(err)
+			return
+		}
 		root, mtp := splitMountPoint(*mtpOpt)
 		dialer.SetMountPoint(mtp)
 		dialer.SetRoot(root)
-		err := dialer.Dial()
+		dialer.PrivateKeyOption(*ident)
+
+		err = dialer.Dial()
 		if err != nil {
 			logrus.Info(err)
 			return
 		}
+
 	}
 }

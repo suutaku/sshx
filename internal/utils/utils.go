@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"io"
 	"net"
+	"os"
+	"strings"
 	"sync"
 
 	"github.com/sirupsen/logrus"
@@ -73,4 +75,16 @@ func HashString(input string) string {
 	h := sha256.New()
 	h.Write([]byte(input))
 	return hex.EncodeToString(h.Sum(nil))
+}
+
+func DebugOn() bool {
+	str := os.Getenv("SSHX_DEBUG")
+	if str == "" {
+		return false
+	}
+	lowStr := strings.ToLower(str)
+	if lowStr == "1" || lowStr == "true" || lowStr == "yes" {
+		return true
+	}
+	return false
 }

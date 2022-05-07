@@ -4,8 +4,6 @@ import (
 	"encoding/gob"
 	"fmt"
 	"net/http"
-	"os"
-	"strings"
 
 	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
@@ -64,16 +62,4 @@ func (sv *Server) push() http.Handler {
 		sv.dm.Set(vars["target_id"], info)
 		logrus.Debug("push from ", info.Source, " to ", vars["target_id"], info.Flag)
 	})
-}
-
-func (sv *Server) debugOn() bool {
-	str := os.Getenv("SSHX_DEBUG")
-	if str == "" {
-		return false
-	}
-	lowStr := strings.ToLower(str)
-	if lowStr == "1" || lowStr == "true" || lowStr == "yes" {
-		return true
-	}
-	return false
 }

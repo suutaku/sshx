@@ -59,9 +59,6 @@ func (stat *StatImpl) Dial() error {
 		return err
 	}
 	req := NewCoreRequest(stat.Code(), types.OPTION_TYPE_STAT)
-
-	logrus.Infof("%#v\n", req)
-
 	if err := gob.NewEncoder(conn).Encode(req); err != nil {
 		return err
 	}
