@@ -16,7 +16,6 @@ import (
 	"strings"
 	"sync"
 	"syscall"
-	"time"
 
 	"github.com/povsister/scp"
 	"github.com/sirupsen/logrus"
@@ -120,7 +119,7 @@ func addHostKey(host string, remote net.Addr, pubKey ssh.PublicKey) error {
 func (s *SshImpl) Init(param ImplParam) {
 	s.config = ssh.ClientConfig{
 		HostKeyCallback: ssh.HostKeyCallback(hostKeyCallback),
-		Timeout:         10 * time.Second,
+		Timeout:         timeout,
 	}
 	s.conn = param.Conn
 	s.localEntryAddr = fmt.Sprintf("127.0.0.1:%d", param.Config.LocalTCPPort)

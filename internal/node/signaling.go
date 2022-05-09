@@ -10,7 +10,7 @@ import (
 
 	"github.com/pion/webrtc/v3"
 	"github.com/sirupsen/logrus"
-	"github.com/suutaku/sshx/internal/impl"
+	"github.com/suutaku/sshx/pkg/impl"
 	"github.com/suutaku/sshx/pkg/types"
 )
 

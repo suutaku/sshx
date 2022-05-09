@@ -6,7 +6,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/suutaku/sshx/internal/impl"
+	"github.com/suutaku/sshx/pkg/impl"
 	"github.com/suutaku/sshx/pkg/types"
 
 	"github.com/pion/webrtc/v3"

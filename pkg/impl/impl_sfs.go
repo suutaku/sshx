@@ -10,7 +10,6 @@ import (
 	"os/user"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/pkg/sftp"
@@ -57,7 +56,7 @@ func (dal *SfsImpl) passwordCallback() (string, error) {
 func (dal *SfsImpl) Init(param ImplParam) {
 	dal.config = ssh.ClientConfig{
 		HostKeyCallback: ssh.HostKeyCallback(hostKeyCallback),
-		Timeout:         10 * time.Second,
+		Timeout:         timeout,
 	}
 	dal.conn = param.Conn
 	dal.localEntryAddr = fmt.Sprintf("127.0.0.1:%d", param.Config.LocalTCPPort)

@@ -11,7 +11,40 @@ ssh p2p tunneling service. An enhanced version of
 ## Connection sequence
 
 ```
-[ sshx CLI----> sshx client ] <----negotiation----> [ sshx server <-----> sshd ]
+.-----------.         .------.                  .----------------.                    .------.    .--------------.
+|Impl Dialer|         |Node A|                  |Signaling server|                    |Node B|    |Impl Responser|
+'-----------'         '------'                  '----------------'                    '------'    '--------------'
+      |                  |                              |                                |               |        
+      |connection request|                              |                                |               |        
+      |----------------->|                              |                                |               |        
+      |                  |                              |                                |               |        
+      |                  |send signaling request (OFFER)|                                |               |        
+      |                  |----------------------------->|                                |               |        
+      |                  |                              |                                |               |        
+      |                  |                              |         dispatch OFFER         |               |        
+      |                  |                              |------------------------------->|               |        
+      |                  |                              |                                |               |        
+      |                  |                              |send signaling response (ANWSER)|               |        
+      |                  |                              |<-------------------------------|               |        
+      |                  |                              |                                |               |        
+      |                  |       dispatch ANWSER        |                                |               |        
+      |                  |<-----------------------------|                                |               |        
+      |                  |                              |                                |               |        
+      | wrap connection  |                              |                                |               |        
+      |<-----------------|                              |                                |               |        
+      |                  |                              |                                |               |        
+      |                  |              establish connection (DATA CHANNEL)              |               |        
+      |                  |-------------------------------------------------------------->|               |        
+      |                  |                              |                                |               |        
+      |                  |                              |                                |wrap connection|        
+      |                  |                              |                                |-------------->|        
+      |                  |                              |                                |               |        
+      |                  |                        do response                            |               |        
+      |<-------------------------------------------------------------------------------------------------|        
+.-----------.         .------.                  .----------------.                    .------.    .--------------.
+|Impl Dialer|         |Node A|                  |Signaling server|                    |Node B|    |Impl Responser|
+'-----------'         '------'                  '----------------'                    '------'    '--------------'
+
 ```
 
 ## Backend protocol
@@ -94,14 +127,18 @@ Start sshx:
 ```bash
 Usage: sshx COMMAND [arg...]
 
-a webrtc based ssh remote tool
-
-Commands:
+a webrtc based ssh remote toolbox
+               
+Commands:      
   daemon       launch a sshx daemon
-  config       manage configure informations
+  config       list configure informations
   connect      connect to remote host
-  copy         cpy files or directories to remote host
-
+  copy-id      copy public key to server
+  copy         copy files or directory from/to remote host
+  proxy        start proxy
+  status       get status
+  fs           sshfs filesystem
+               
 Run 'sshx COMMAND --help' for more information on a command.
 ```
 Daemoon
@@ -157,9 +194,75 @@ Commands:
 Run 'sshx proxy COMMAND --help' for more information on a command.
 ```
 
-VNC 
+VNC
 
 sshx contained a `noVNC` client which write with Javascript. To use client just access `http://vnc.sshx.wz` (not working with VPN environment) or `http://127.0.0.1` and input device ID in setting menu.
+
+Copy ID
+
+```bash
+Usage: sshx copy-id ADDR
+
+copy public key to server
+               
+Arguments:     
+  ADDR         remote target address [username]@[host]:[port]
+```
+
+SSHFS
+
+```bash
+Usage: sshx fs COMMAND [arg...]
+
+sshfs filesystem
+               
+Commands:      
+  mount        mount a remote filesystem
+  unmount      unmount a remote filesystem
+               
+Run 'sshx fs COMMAND --help' for more information on a command.
+```
+
+Status
+
+Show current connections
+
+## Appliction
+
+Using sshx, you can write your own NAT-Traversal applications by implement `Impl` at `github.com/suutaku/sshx/pkg/impl`:
+
+```golang
+type Impl interface {
+	// set implementation specifiy configure
+	Init(ImplParam)
+
+  // return the application code, see pkg/types/types.go
+	Code() int32
+	// Writer of dialer
+	DialerWriter() io.Writer
+	// Writer of responser
+	ResponserWriter() io.Writer
+	// Reader of dialer
+	DialerReader() io.Reader
+	// Reader of responser
+	ResponserReader() io.Reader
+	// Response of remote device call
+	Response() error
+	// Call remote device
+	Dial() error
+	// Close Impl connection
+	Close()
+	// Set pairId dynamiclly
+	SetPairId(id string)
+}
+```
+
+basically, `Impl` can acts as a `Dialer` or `Responser`. A `Dialer` send an connection request to local node to tell it which application will used for this connection. 
+local node make a P2P connection to target device and `Responser` at target devie response your request. see more `pkg/impl/impl_ssh.go`.
+
+
+
+
 
 Features
 
@@ -176,6 +279,6 @@ Features
 - [x] Lunux system service supporting
 - [x] VS Code SSH remote suportting (use proxy way due the VS Code not an open source project)
 - [x] VNC supporting (both vnc server and client)
-- [ ] Ssh-fs supporting
+- [x] Ssh-fs supporting
 
 

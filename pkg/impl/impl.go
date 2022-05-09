@@ -4,11 +4,13 @@ import (
 	"io"
 	"net"
 	"reflect"
+	"time"
 
 	"github.com/suutaku/sshx/pkg/conf"
 )
 
 const flagLen = 8
+const timeout = 30 * time.Second
 
 // Impl represents an application implementation
 type Impl interface {

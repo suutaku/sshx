@@ -5,8 +5,8 @@ import (
 
 	cli "github.com/jawher/mow.cli"
 	"github.com/sirupsen/logrus"
-	"github.com/suutaku/sshx/internal/impl"
 	"github.com/suutaku/sshx/pkg/conf"
+	"github.com/suutaku/sshx/pkg/impl"
 )
 
 func cmdSSHFS(cmd *cli.Cmd) {

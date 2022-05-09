@@ -10,7 +10,6 @@ import (
 	"os/user"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/povsister/scp"
 	"github.com/sirupsen/logrus"
@@ -58,7 +57,7 @@ func (dal *ScpImpl) passwordCallback() (string, error) {
 func (dal *ScpImpl) Init(param ImplParam) {
 	dal.config = ssh.ClientConfig{
 		HostKeyCallback: ssh.HostKeyCallback(hostKeyCallback),
-		Timeout:         10 * time.Second,
+		Timeout:         timeout,
 	}
 	dal.conn = param.Conn
 	dal.localEntryAddr = fmt.Sprintf("127.0.0.1:%d", param.Config.LocalTCPPort)

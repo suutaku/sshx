@@ -9,8 +9,8 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"
 	"github.com/suutaku/go-vnc/pkg/vnc"
-	"github.com/suutaku/sshx/internal/impl"
 	"github.com/suutaku/sshx/internal/utils"
+	"github.com/suutaku/sshx/pkg/impl"
 )
 
 var upgrader = websocket.Upgrader{
