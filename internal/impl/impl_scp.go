@@ -42,9 +42,22 @@ func (dal *ScpImpl) SetPairId(id string) {
 	}
 }
 
+func (dal *ScpImpl) passwordCallback() (string, error) {
+	logrus.Debug("password callback")
+	dal.retry++
+	if dal.retry > NumberOfPrompts {
+		return "", fmt.Errorf("auth failed")
+	}
+	fmt.Print("Password: ")
+	b, _ := terminal.ReadPassword(int(syscall.Stdin))
+	fmt.Print("\n")
+	dal.config.Auth = append(dal.config.Auth, ssh.Password(string(b)))
+	return string(b), nil
+}
+
 func (dal *ScpImpl) Init(param ImplParam) {
 	dal.config = ssh.ClientConfig{
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		HostKeyCallback: ssh.HostKeyCallback(hostKeyCallback),
 		Timeout:         10 * time.Second,
 	}
 	dal.conn = param.Conn
@@ -87,30 +100,10 @@ func (dal *ScpImpl) Dial() error {
 	dal.conn = &conn
 	err = dal.dialAndCopyFiles()
 	if err != nil {
-		err = dal.RequestPassword(err)
-		if err == nil {
-			return dal.Dial()
-		}
+		dal.Close()
 		return err
 	}
 	return nil
-}
-
-func (s *ScpImpl) RequestPassword(err error) error {
-	if s.retry >= maxRetryTime {
-		return fmt.Errorf("invalid password")
-	}
-	if strings.Contains(err.Error(), "ssh: handshake failed: ssh: unable to authenticate") {
-		s.config.Auth = make([]ssh.AuthMethod, 0)
-		s.retry++
-		logrus.Debug("retry at ", s.retry)
-		fmt.Print("Password: ")
-		b, _ := terminal.ReadPassword(int(syscall.Stdin))
-		fmt.Print("\n")
-		s.config.Auth = append(s.config.Auth, ssh.Password(string(b)))
-		return nil
-	}
-	return err
 }
 
 func (dal *ScpImpl) Response() error {
@@ -161,6 +154,7 @@ func (dal *ScpImpl) ResponserWriter() io.Writer {
 
 func (dal *ScpImpl) dialAndCopyFiles() error {
 	logrus.Debug("create scp conn from dal.conn")
+	dal.config.Auth = append(dal.config.Auth, ssh.RetryableAuthMethod(ssh.PasswordCallback(dal.passwordCallback), NumberOfPrompts))
 	c, chans, reqs, err := ssh.NewClientConn(*dal.conn, "", &dal.config)
 	if err != nil {
 		return err

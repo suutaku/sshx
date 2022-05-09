@@ -20,6 +20,7 @@ func main() {
 	app.Command("daemon", "launch a sshx daemon", cmdDaemon)
 	app.Command("config", "list configure informations", cmdConfig)
 	app.Command("connect", "connect to remote host", cmdConnect)
+	app.Command("copy-id", "copy public key to server", cmdCopyId)
 	app.Command("copy", "copy files or directory from/to remote host", cmdCopy)
 	app.Command("proxy", "start proxy", cmdProxy)
 	app.Command("status", "get status", cmdStatus)

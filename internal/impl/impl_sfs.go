@@ -21,7 +21,7 @@ import (
 	"github.com/suutaku/sshx/internal/utils"
 	"github.com/suutaku/sshx/pkg/types"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/term"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 type SfsImpl struct {
@@ -41,16 +41,29 @@ func NewSfsImpl() *SfsImpl {
 	return &SfsImpl{}
 }
 
-func (vnc *SfsImpl) Init(param ImplParam) {
-	vnc.config = ssh.ClientConfig{
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+func (dal *SfsImpl) passwordCallback() (string, error) {
+	logrus.Debug("password callback")
+	dal.retry++
+	if dal.retry > NumberOfPrompts {
+		return "", fmt.Errorf("auth failed")
+	}
+	fmt.Print("Password: ")
+	b, _ := terminal.ReadPassword(int(syscall.Stdin))
+	fmt.Print("\n")
+	dal.config.Auth = append(dal.config.Auth, ssh.Password(string(b)))
+	return string(b), nil
+}
+
+func (dal *SfsImpl) Init(param ImplParam) {
+	dal.config = ssh.ClientConfig{
+		HostKeyCallback: ssh.HostKeyCallback(hostKeyCallback),
 		Timeout:         10 * time.Second,
 	}
-	vnc.conn = param.Conn
-	vnc.localEntryAddr = fmt.Sprintf("127.0.0.1:%d", param.Config.LocalTCPPort)
-	vnc.localSSHAddr = fmt.Sprintf("127.0.0.1:%d", param.Config.LocalSSHPort)
-	vnc.hostId = param.HostId
-	vnc.pairId = param.PairId
+	dal.conn = param.Conn
+	dal.localEntryAddr = fmt.Sprintf("127.0.0.1:%d", param.Config.LocalTCPPort)
+	dal.localSSHAddr = fmt.Sprintf("127.0.0.1:%d", param.Config.LocalSSHPort)
+	dal.hostId = param.HostId
+	dal.pairId = param.PairId
 }
 
 func (dal *SfsImpl) SetPairId(id string) {
@@ -99,11 +112,7 @@ func (dal *SfsImpl) Dial() error {
 	dal.conn = &conn
 	err = dal.dialAndMount()
 	if err != nil {
-		err = dal.RequestPassword(err)
-		if err == nil {
-			dal.Close()
-			return dal.Dial()
-		}
+		dal.Close()
 		return err
 	}
 	return nil
@@ -145,23 +154,6 @@ func (dal *SfsImpl) PrivateKeyOption(keyPath string) {
 		return
 	}
 	dal.config.Auth = append(dal.config.Auth, ssh.PublicKeys(signer))
-}
-
-func (s *SfsImpl) RequestPassword(err error) error {
-	if s.retry >= maxRetryTime {
-		return fmt.Errorf("invalid password")
-	}
-	if strings.Contains(err.Error(), "ssh: handshake failed: ssh: unable to authenticate") {
-		s.config.Auth = make([]ssh.AuthMethod, 0)
-		s.retry++
-		logrus.Debug("retry at ", s.retry)
-		fmt.Print("Password: ")
-		b, _ := term.ReadPassword(int(syscall.Stdin))
-		fmt.Print("\n")
-		s.config.Auth = append(s.config.Auth, ssh.Password(string(b)))
-		return nil
-	}
-	return err
 }
 
 func (dal *SfsImpl) Response() error {
@@ -215,6 +207,7 @@ func (dal *SfsImpl) ResponserWriter() io.Writer {
 
 func (dal *SfsImpl) dialAndMount() error {
 	// logrus.Debug("create sshfs conn from dal.conn")
+	dal.config.Auth = append(dal.config.Auth, ssh.RetryableAuthMethod(ssh.PasswordCallback(dal.passwordCallback), NumberOfPrompts))
 	c, chans, reqs, err := ssh.NewClientConn(*dal.conn, "", &dal.config)
 	if err != nil {
 		return err

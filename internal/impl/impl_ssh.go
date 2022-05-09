@@ -2,6 +2,7 @@ package impl
 
 import (
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/gob"
 	"encoding/pem"
 	"errors"
@@ -11,18 +12,23 @@ import (
 	"net"
 	"os"
 	"os/user"
+	"path"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
 
+	"github.com/povsister/scp"
 	"github.com/sirupsen/logrus"
 	"github.com/suutaku/sshx/pkg/types"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/knownhosts"
 	"golang.org/x/crypto/ssh/terminal"
 )
 
-const maxRetryTime = 3
+const NumberOfPrompts = 3
+
+var keyErr *knownhosts.KeyError
 
 type SshImpl struct {
 	conn           *net.Conn
@@ -32,23 +38,95 @@ type SshImpl struct {
 	x11            bool
 	hostId         string
 	pairId         string
-	retry          int
+	copyIdOpt      bool
 }
 
 func NewSshImpl() *SshImpl {
 	return &SshImpl{}
 }
 
-func (vnc *SshImpl) Init(param ImplParam) {
-	vnc.config = ssh.ClientConfig{
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+func (dal *SshImpl) passwordCallback() (string, error) {
+	logrus.Debug("password callback")
+	fmt.Print("Password: ")
+	b, _ := terminal.ReadPassword(int(syscall.Stdin))
+	fmt.Print("\n")
+	dal.config.Auth = append(dal.config.Auth, ssh.Password(string(b)))
+	return string(b), nil
+}
+
+func createKnownHosts() {
+	f, fErr := os.OpenFile(path.Join(os.Getenv("HOME"), ".ssh", "known_hosts"), os.O_CREATE, 0600)
+	if fErr != nil {
+		logrus.Error(fErr)
+	}
+	f.Close()
+}
+
+func checkKnownHosts() ssh.HostKeyCallback {
+	createKnownHosts()
+	kh, err := knownhosts.New(path.Join(os.Getenv("HOME"), ".ssh", "known_hosts"))
+	if err != nil {
+		logrus.Error(err)
+	}
+	return kh
+}
+
+func hostKeyString(k ssh.PublicKey) string {
+	return k.Type() + " " + base64.StdEncoding.EncodeToString(k.Marshal()) // e.g. "ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTY...."
+}
+
+func hostKeyCallback(host string, remote net.Addr, pubKey ssh.PublicKey) error {
+	kh := checkKnownHosts()
+	hErr := kh(host, remote, pubKey)
+	// Reference: https://blog.golang.org/go1.13-errors
+	// To understand what errors.As is.
+	if hErr == nil {
+		//logrus.Printf("Pub key exists for %s.", host)
+		return nil
+	}
+	if errors.As(hErr, &keyErr) && len(keyErr.Want) > 0 {
+		// Reference: https://www.godoc.org/golang.org/x/crypto/ssh/knownhosts#KeyError
+		// if keyErr.Want slice is empty then host is unknown, if keyErr.Want is not empty
+		// and if host is known then there is key mismatch the connection is then rejected.
+		//	logrus.Printf("WARNING: %v is not a key of %s, either a MiTM attack or %s has reconfigured the host pub key.", hostKeyString(pubKey), host, host)
+		// return keyErr
+		// force continue (NOT SAFE!!!)
+		return nil
+	} else if errors.As(hErr, &keyErr) && len(keyErr.Want) == 0 {
+		// host key not found in known_hosts then give a warning and continue to connect.
+		//logrus.Printf("WARNING: %s is not trusted, adding this key: %q to known_hosts file.", host, hostKeyString(pubKey))
+		return addHostKey(host, remote, pubKey)
+	}
+	//logrus.Printf("Pub key exists for %s.", host)
+	return nil
+}
+
+func addHostKey(host string, remote net.Addr, pubKey ssh.PublicKey) error {
+	// add host key if host is not found in known_hosts, error object is return, if nil then connection proceeds,
+	// if not nil then connection stops.
+	khFilePath := path.Join(os.Getenv("HOME"), ".ssh", "known_hosts")
+
+	f, fErr := os.OpenFile(khFilePath, os.O_APPEND|os.O_WRONLY, 0600)
+	if fErr != nil {
+		return fErr
+	}
+	defer f.Close()
+
+	knownHosts := knownhosts.Normalize(remote.String())
+	_, fileErr := f.WriteString(knownhosts.Line([]string{knownHosts}, pubKey))
+	return fileErr
+}
+
+func (s *SshImpl) Init(param ImplParam) {
+	s.config = ssh.ClientConfig{
+		HostKeyCallback: ssh.HostKeyCallback(hostKeyCallback),
 		Timeout:         10 * time.Second,
 	}
-	vnc.conn = param.Conn
-	vnc.localEntryAddr = fmt.Sprintf("127.0.0.1:%d", param.Config.LocalTCPPort)
-	vnc.localSSHAddr = fmt.Sprintf("127.0.0.1:%d", param.Config.LocalSSHPort)
-	vnc.hostId = param.HostId
-	vnc.pairId = param.PairId
+	s.conn = param.Conn
+	s.localEntryAddr = fmt.Sprintf("127.0.0.1:%d", param.Config.LocalTCPPort)
+	s.localSSHAddr = fmt.Sprintf("127.0.0.1:%d", param.Config.LocalSSHPort)
+	s.hostId = param.HostId
+	s.pairId = param.PairId
 }
 
 func (dal *SshImpl) DialerReader() io.Reader {
@@ -133,36 +211,16 @@ func (dal *SshImpl) Dial() error {
 	dal.conn = &conn
 	err = dal.dialRemoteAndOpenTerminal()
 	if err != nil {
-		err = dal.RequestPassword(err)
-		if err == nil {
-			dal.Close()
-			return dal.Dial()
-		}
+		dal.Close()
 		return err
 	}
 	return nil
 }
 
-func (s *SshImpl) RequestPassword(err error) error {
-	if s.retry >= maxRetryTime {
-		return fmt.Errorf("invalid password")
-	}
-	if strings.Contains(err.Error(), "ssh: handshake failed: ssh: unable to authenticate") {
-		s.config.Auth = make([]ssh.AuthMethod, 0)
-		s.retry++
-		logrus.Debug("retry at ", s.retry)
-		fmt.Print("Password: ")
-		b, _ := terminal.ReadPassword(int(syscall.Stdin))
-		fmt.Print("\n")
-		s.config.Auth = append(s.config.Auth, ssh.Password(string(b)))
-		return nil
-	}
-	return err
-}
-
 // dial remote sshd with opened wrtc connection
 func (s *SshImpl) dialRemoteAndOpenTerminal() error {
 	logrus.Debug("dialRemoteAndOpenTerminal")
+	s.config.Auth = append(s.config.Auth, ssh.RetryableAuthMethod(ssh.PasswordCallback(s.passwordCallback), NumberOfPrompts))
 	c, chans, reqs, err := ssh.NewClientConn(*s.conn, "", &s.config)
 	if err != nil {
 		return err
@@ -178,6 +236,25 @@ func (s *SshImpl) dialRemoteAndOpenTerminal() error {
 		return err
 	}
 	logrus.Debug("session")
+	if s.copyIdOpt {
+		scpClient, err := scp.NewClientFromExistingSSH(client, &scp.ClientOption{})
+		if err != nil {
+			return nil
+		}
+		pubKeyPath := path.Join(os.Getenv("HOME"), ".ssh", "id_rsa.pub")
+		tmplatePath := path.Join("tmp", "")
+		targetKey := path.Join("~", "./.ssh/authorized_keys")
+		err = scpClient.CopyFileToRemote(pubKeyPath, tmplatePath, &scp.FileTransferOption{Perm: os.FileMode(0600)})
+		if err != nil {
+			logrus.Warn(err)
+		} else {
+			session.Run("cat " + tmplatePath + " >> " + targetKey)
+			session.Run("rm " + tmplatePath)
+		}
+
+		return nil
+
+	}
 	if s.x11 {
 		x11Request(session, client)
 	}
@@ -241,8 +318,7 @@ func (s *SshImpl) dialRemoteAndOpenTerminal() error {
 
 func (dal *SshImpl) PrivateKeyOption(keyPath string) {
 	if keyPath == "" {
-		home := os.Getenv("HOME")
-		keyPath = home + "/.ssh/id_rsa"
+		keyPath = path.Join(os.Getenv("HOME"), ".ssh", "id_rsa")
 	}
 	pemBytes, err := ioutil.ReadFile(keyPath)
 	if err != nil {
@@ -409,4 +485,8 @@ func forwardX11Socket(channel ssh.Channel) {
 	wg.Wait()
 	conn.Close()
 	channel.Close()
+}
+
+func (dal *SshImpl) CopyId() {
+	dal.copyIdOpt = true
 }

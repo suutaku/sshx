@@ -7,8 +7,43 @@ import (
 	"github.com/suutaku/sshx/pkg/conf"
 )
 
+func cmdCopyId(cmd *cli.Cmd) {
+	cmd.Spec = "ADDR"
+	addr := cmd.StringArg("ADDR", "", "remote target address [username]@[host]:[port]")
+	cmd.Action = func() {
+		if addr == nil || *addr == "" {
+			return
+		}
+		cm := conf.NewConfManager(getRootPath())
+		dialer := impl.NewSshImpl()
+
+		// init dialer
+		param := impl.ImplParam{
+			Config: *cm.Conf,
+		}
+		dialer.Init(param)
+
+		// parse user name
+		err := dialer.DecodeAddress(*addr)
+		if err != nil {
+			logrus.Error(err)
+			return
+		}
+		dialer.CopyId()
+		// parse client option
+		logrus.Debug("cmd connect")
+		err = dialer.Dial()
+		if err != nil {
+			logrus.Info(err)
+			return
+		}
+		dialer.Close()
+	}
+}
+
 func cmdConnect(cmd *cli.Cmd) {
-	cmd.Spec = "[ -X ] [ -i ] ADDR"
+	cmd.Spec = "[ -X ] [ -i ]ADDR"
+
 	tmp := cmd.BoolOpt("X x11", false, "using X11 opton, default false")
 	ident := cmd.StringOpt("i identification", "", "a private path, default empty for ~/.ssh/id_rsa")
 
