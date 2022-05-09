@@ -24,7 +24,7 @@ require (
 	golang.org/x/crypto v0.0.0-20220427172511-eb4f295cb31f
 	golang.org/x/image v0.0.0-20220413100746-70e8d0d3baa9 // indirect
 	golang.org/x/net v0.0.0-20220425223048-2871e0cb64e4
-	golang.org/x/term v0.0.0-20220411215600-e5f449aeb171
+	golang.org/x/term v0.0.0-20220411215600-e5f449aeb171 // indirect
 )
 
 // replace github.com/suutaku/go-sshfs => /Users/john/Desktop/work/go-sshfs
