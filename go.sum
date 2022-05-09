@@ -469,6 +469,8 @@ github.com/subosito/gotenv v1.2.0 h1:Slr1R9HxAlEKefgq5jn9U+DnETlIUa6HfgEzj0g5d7s
 github.com/subosito/gotenv v1.2.0/go.mod h1:N0PQaV/YGNqwC0u51sEeR/aUtSLEXKX9iv69rRypqCw=
 github.com/suutaku/go-sshfs v0.0.0-20220507072857-48814ba39837 h1:O8ts3M/myIs0gSJ7OU1GmiERSDxStHWXAvZRR4BVyt0=
 github.com/suutaku/go-sshfs v0.0.0-20220507072857-48814ba39837/go.mod h1:cyl20gd6hYk6Am1iQ2ePa8u2ZKuz0YJ/xcCEBW0HcUE=
+github.com/suutaku/go-sshfs v0.0.0-20220509102129-5645a6a7825b h1:/yr1ymOZyk7/t+CHIMEHyPASWthMF/A+45CWZBLrrEI=
+github.com/suutaku/go-sshfs v0.0.0-20220509102129-5645a6a7825b/go.mod h1:cyl20gd6hYk6Am1iQ2ePa8u2ZKuz0YJ/xcCEBW0HcUE=
 github.com/suutaku/go-vnc v0.0.0-20220423131932-dd675a6c4e62 h1:2wXGS9AP+l0uxdtntM8Sx4cDxup1kzrkdf2o3nBO73M=
 github.com/suutaku/go-vnc v0.0.0-20220423131932-dd675a6c4e62/go.mod h1:yZJo30P6WmVSmzBKq+v8vZA8/eBhpj/vGivHfX5zxpc=
 github.com/suutaku/screenshot v0.0.0-20220422154633-c49e77dbf1a9 h1:OVWxa+xIFSTPFECPjwRQmi4USV6+dZYPDCayJ+Xbg/w=

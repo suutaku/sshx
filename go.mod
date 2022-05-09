@@ -19,7 +19,7 @@ require (
 	github.com/shirou/gopsutil/v3 v3.22.3 // indirect
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/viper v1.11.0
-	github.com/suutaku/go-sshfs v0.0.0-20220507072857-48814ba39837
+	github.com/suutaku/go-sshfs v0.0.0-20220509102129-5645a6a7825b
 	github.com/suutaku/go-vnc v0.0.0-20220423131932-dd675a6c4e62
 	golang.org/x/crypto v0.0.0-20220427172511-eb4f295cb31f
 	golang.org/x/image v0.0.0-20220413100746-70e8d0d3baa9 // indirect
