@@ -62,6 +62,7 @@ func (pair *ConnectionPair) Response(info types.SignalingInfo) error {
 	if err != nil {
 		pair.Exit <- err
 		logrus.Print(err)
+		pair.Close()
 		return err
 	}
 	peer.OnDataChannel(func(dc *webrtc.DataChannel) {
@@ -71,6 +72,7 @@ func (pair *ConnectionPair) Response(info types.SignalingInfo) error {
 			if err != nil {
 				logrus.Error(err)
 				pair.Exit <- err
+				pair.Close()
 				return
 			}
 			pair.Exit <- err
@@ -80,7 +82,10 @@ func (pair *ConnectionPair) Response(info types.SignalingInfo) error {
 			pair.Close()
 		})
 		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-			logrus.Debug("message comes")
+			if pair.impl == nil {
+				pair.Close()
+				return
+			}
 			_, err := pair.impl.ResponserWriter().Write(msg.Data)
 			if err != nil {
 				logrus.Error("sock write failed:", err)
@@ -124,6 +129,10 @@ func (pair *ConnectionPair) Dial() error {
 		}
 	})
 	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
+		if pair.impl == nil {
+			pair.Close()
+			return
+		}
 		_, err := pair.impl.DialerWriter().Write(msg.Data)
 		if err != nil {
 			logrus.Error("sock write failed:", err)
