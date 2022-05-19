@@ -14,8 +14,9 @@ const timeout = 30 * time.Second
 
 // Impl represents an application implementation
 type Impl interface {
-	// set implementation specifiy configure
+	// Set implementation specifiy configure
 	Init(ImplParam)
+	// Return impl code
 	Code() int32
 	// Writer of dialer
 	DialerWriter() io.Writer

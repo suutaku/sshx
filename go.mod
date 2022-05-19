@@ -27,4 +27,4 @@ require (
 	golang.org/x/term v0.0.0-20220411215600-e5f449aeb171 // indirect
 )
 
-replace github.com/suutaku/go-sshfs => /Users/john/Desktop/work/go-sshfs
+// replace github.com/suutaku/go-sshfs => /Users/john/Desktop/work/go-sshfs
