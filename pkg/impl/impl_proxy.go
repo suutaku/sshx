@@ -52,7 +52,6 @@ func (p *Proxy) Dial() error {
 }
 
 func (p *Proxy) Response() error {
-
 	return nil
 }
 
@@ -73,5 +72,11 @@ func (p *Proxy) doDial(inconn net.Conn) {
 		logrus.Error(err)
 		return
 	}
+	defer func() {
+		conn.Close()
+		closeSender := NewSender(imp, types.OPTION_TYPE_DOWN)
+		closeSender.PairId = sender.PairId
+		closeSender.SendDetach()
+	}()
 	utils.Pipe(&inconn, &conn)
 }

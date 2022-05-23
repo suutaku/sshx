@@ -31,6 +31,13 @@ func NewSSHFS(mountPoint, root, address, id string) *SSHFS {
 }
 
 func (fs *SSHFS) Preper() error {
+	// use ssh impl to get host id
+	ssht := NewSSH(fs.Address, false, fs.Identify, false)
+	err := ssht.Preper()
+	if err != nil {
+		return err
+	}
+	fs.HId = ssht.HId
 	return nil
 }
 
@@ -44,13 +51,18 @@ func (fs *SSHFS) Dial() error {
 	if err != nil {
 		return err
 	}
-
+	fs.HId = ssht.HId
 	sender := NewSender(ssht, types.OPTION_TYPE_UP)
 	conn, err := sender.Send()
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	defer func() {
+		conn.Close()
+		closeSender := NewSender(ssht, types.OPTION_TYPE_DOWN)
+		closeSender.PairId = sender.PairId
+		closeSender.SendDetach()
+	}()
 	ssht.config.Auth = append(ssht.config.Auth, ssh.RetryableAuthMethod(ssh.PasswordCallback(ssht.passwordCallback), NumberOfPrompts))
 	c, chans, reqs, err := ssh.NewClientConn(conn, "", &ssht.config)
 	if err != nil {

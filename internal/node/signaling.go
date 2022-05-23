@@ -55,7 +55,7 @@ func (node *Node) ServeOfferInfo(info *types.SignalingInfo) {
 	}
 	iface := impl.GetImpl(cvt.GetAppCode())
 	iface.Init()
-	pair := NewConnectionPair(node.ConfManager.Conf.RTCConf, iface, node.ConfManager.Conf.ID, info.Source)
+	pair := NewConnectionPair(node.ConfManager.Conf.RTCConf, iface, node.ConfManager.Conf.ID, info.Source, &node.stm.CleanChan)
 	node.AddPair(poolId(info), pair)
 	err := node.GetPair(poolId(info)).Response(info)
 	if err != nil {
@@ -109,7 +109,7 @@ func (node *Node) ServeSignaling() {
 
 	// pull loop
 	go func() {
-		for {
+		for node.running {
 			res, err := http.Get(node.ConfManager.Conf.SignalingServerAddr +
 				path.Join("/", "pull", node.ConfManager.Conf.ID))
 			if err != nil {
@@ -129,7 +129,7 @@ func (node *Node) ServeSignaling() {
 		}
 	}()
 
-	for {
+	for node.running {
 		select {
 		case info := <-node.sigPush:
 			go node.ServePush(info)

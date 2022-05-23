@@ -8,6 +8,7 @@ import (
 func cmdDaemon(cmd *cli.Cmd) {
 	cmd.Action = func() {
 		n := node.NewNode(getRootPath())
+		defer n.Stop()
 		n.Start()
 	}
 }

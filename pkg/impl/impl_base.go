@@ -58,4 +58,5 @@ func (base *BaseImpl) Close() {
 	if base.Conn != nil {
 		(*base.Conn).Close()
 	}
+	logrus.Debug("close base impl")
 }

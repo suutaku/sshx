@@ -14,6 +14,7 @@ type Node struct {
 	sigPush     chan *types.SignalingInfo
 	cpPool      map[string]*ConnectionPair
 	stm         *StatManager
+	running     bool
 }
 
 func NewNode(home string) *Node {
@@ -27,7 +28,9 @@ func NewNode(home string) *Node {
 }
 
 func (node *Node) Start() {
+	node.running = true
 	go node.ServeSignaling()
+	go node.stm.Start()
 	node.ServeTCP()
 }
 
@@ -44,6 +47,7 @@ func (node *Node) AddPair(id string, pair *ConnectionPair) {
 		node.RemovePair(id)
 	}
 	node.cpPool[id] = pair
+	pair.SetPoolId(id)
 	stat := types.Status{
 		PairId:    id,
 		TargetId:  pair.targetId,
@@ -56,4 +60,9 @@ func (node *Node) AddPair(id string, pair *ConnectionPair) {
 
 func (node *Node) GetPair(id string) *ConnectionPair {
 	return node.cpPool[id]
+}
+
+func (node *Node) Stop() {
+	node.running = false
+	node.stm.Stop()
 }

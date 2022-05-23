@@ -30,9 +30,11 @@ type ConnectionPair struct {
 	impl     impl.Impl
 	nodeId   string
 	targetId string
+	stmChan  *chan string
+	poolId   string
 }
 
-func NewConnectionPair(conf webrtc.Configuration, impl impl.Impl, nodeId string, targetId string) *ConnectionPair {
+func NewConnectionPair(conf webrtc.Configuration, impl impl.Impl, nodeId string, targetId string, stmChan *chan string) *ConnectionPair {
 	pc, err := webrtc.NewPeerConnection(conf)
 	if err != nil {
 		logrus.Error("rtc error:", err)
@@ -45,11 +47,20 @@ func NewConnectionPair(conf webrtc.Configuration, impl impl.Impl, nodeId string,
 		impl:           impl,
 		nodeId:         nodeId,
 		targetId:       targetId,
+		stmChan:        stmChan,
 	}
+}
+
+func (pair *ConnectionPair) GetImpl() impl.Impl {
+	return pair.impl
 }
 
 func (pair *ConnectionPair) SetId(id int64) {
 	pair.Id = id
+}
+
+func (pair *ConnectionPair) SetPoolId(id string) {
+	pair.poolId = id
 }
 
 // create responser
@@ -148,8 +159,10 @@ func (pair *ConnectionPair) Dial() error {
 	return nil
 }
 func (pair *ConnectionPair) Close() {
+	logrus.Debug("close pair")
 	if pair.PeerConnection != nil {
 		pair.PeerConnection.Close()
+		(*pair.stmChan) <- pair.poolId
 	}
 	if pair.impl != nil {
 		pair.impl.Close()

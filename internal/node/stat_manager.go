@@ -6,13 +6,29 @@ import (
 )
 
 type StatManager struct {
-	stats map[string]types.Status
+	stats     map[string]types.Status
+	running   bool
+	CleanChan chan string
 }
 
 func NewStatManager() *StatManager {
 	return &StatManager{
-		stats: make(map[string]types.Status),
+		stats:     make(map[string]types.Status),
+		CleanChan: make(chan string, 10),
 	}
+}
+
+func (stm *StatManager) Start() {
+	stm.running = true
+	for stm.running {
+		pairId := <-stm.CleanChan
+		stm.Remove(pairId)
+		logrus.Debug("clean request from clean channel ", pairId)
+	}
+}
+
+func (stm *StatManager) Stop() {
+	stm.running = false
 }
 
 func (stm *StatManager) Put(stat types.Status) {

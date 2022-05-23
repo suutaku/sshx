@@ -79,7 +79,12 @@ func (vnc *VNCService) Dial() error {
 			logrus.Error(err)
 			return
 		}
-		defer inConn.Close()
+		defer func() {
+			conn.Close()
+			closeSender := NewSender(imp, types.OPTION_TYPE_DOWN)
+			closeSender.PairId = sender.PairId
+			closeSender.SendDetach()
+		}()
 		underConn := conn.UnderlyingConn()
 		utils.PipeWR(inConn, underConn, inConn, underConn)
 		logrus.Debug("end of gorutine")

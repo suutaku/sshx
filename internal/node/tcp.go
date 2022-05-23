@@ -17,7 +17,7 @@ func (node *Node) ServeTCP() {
 		logrus.Error(err)
 		panic(err)
 	}
-	for {
+	for node.running {
 		sock, err := listenner.Accept()
 		if err != nil {
 			logrus.Error(err)
@@ -43,7 +43,7 @@ func (node *Node) ServeTCP() {
 			}
 			iface.Init()
 			logrus.Debug("up option")
-			pair := NewConnectionPair(node.ConfManager.Conf.RTCConf, iface, node.ConfManager.Conf.ID, iface.HostId())
+			pair := NewConnectionPair(node.ConfManager.Conf.RTCConf, iface, node.ConfManager.Conf.ID, iface.HostId(), &node.stm.CleanChan)
 			pair.Dial()
 			info := pair.Offer(string(iface.HostId()), tmp.Type)
 			node.AddPair(poolId(info), pair)
@@ -56,11 +56,16 @@ func (node *Node) ServeTCP() {
 				node.SignalCandidate(info, iface.HostId(), c)
 			})
 			if !tmp.Detach {
+				// fill pair id and send back the 'sender'
+				tmp.PairId = []byte(poolId(info))
 				go pair.ResponseTCP(tmp)
 			}
 		case types.OPTION_TYPE_DOWN:
 			logrus.Debug("down option")
-			node.RemovePair(string(tmp.PairId))
+			pair := node.GetPair(string(tmp.PairId))
+			if pair.GetImpl().Code() == tmp.GetAppCode() {
+				node.RemovePair(string(tmp.PairId))
+			}
 		case types.OPTION_TYPE_STAT:
 			logrus.Debug("stat option")
 			res := node.stm.Get()
