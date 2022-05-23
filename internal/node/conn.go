@@ -50,8 +50,6 @@ func NewConnectionPair(conf webrtc.Configuration, impl impl.Impl, nodeId string,
 
 func (pair *ConnectionPair) SetId(id int64) {
 	pair.Id = id
-	debug := fmt.Sprintf("conn_%d", id)
-	pair.impl.SetPairId(debug)
 }
 
 // create responser
@@ -77,7 +75,7 @@ func (pair *ConnectionPair) Response(info types.SignalingInfo) error {
 			}
 			pair.Exit <- err
 			logrus.Info("data channel open 2")
-			io.Copy(&Wrapper{dc}, pair.impl.ResponserReader())
+			io.Copy(&Wrapper{dc}, pair.impl.Reader())
 			dc.Close()
 			pair.Close()
 		})
@@ -86,7 +84,7 @@ func (pair *ConnectionPair) Response(info types.SignalingInfo) error {
 				pair.Close()
 				return
 			}
-			_, err := pair.impl.ResponserWriter().Write(msg.Data)
+			_, err := pair.impl.Writer().Write(msg.Data)
 			if err != nil {
 				logrus.Error("sock write failed:", err)
 				pair.Close()
@@ -117,10 +115,11 @@ func (pair *ConnectionPair) Dial() error {
 		pair.Close()
 		return err
 	}
+	go pair.impl.Dial()
 	dc.OnOpen(func() {
 		logrus.Info("data channel open 1")
 		pair.Exit <- nil
-		_, err := io.Copy(&Wrapper{dc}, pair.impl.DialerReader())
+		_, err := io.Copy(&Wrapper{dc}, pair.impl.Reader())
 		if err != nil {
 			logrus.Error(err)
 			pair.Exit <- err
@@ -133,7 +132,7 @@ func (pair *ConnectionPair) Dial() error {
 			pair.Close()
 			return
 		}
-		_, err := pair.impl.DialerWriter().Write(msg.Data)
+		_, err := pair.impl.Writer().Write(msg.Data)
 		if err != nil {
 			logrus.Error("sock write failed:", err)
 			pair.Close()
@@ -159,6 +158,9 @@ func (pair *ConnectionPair) Close() {
 
 func (pair *ConnectionPair) Offer(target string, reType int32) *types.SignalingInfo {
 	logrus.Debug("pair offer")
+	if target == "" {
+		return nil
+	}
 	offer, err := pair.PeerConnection.CreateOffer(nil)
 	if err != nil {
 		logrus.Error("offer create offer error:", err)
@@ -253,7 +255,7 @@ func (pair *ConnectionPair) IsRemoteDescriptionSet() bool {
 	return !(pair.PeerConnection.RemoteDescription() == nil)
 }
 
-func (pair *ConnectionPair) ResponseTCP(resp impl.CoreResponse) {
+func (pair *ConnectionPair) ResponseTCP(resp impl.Sender) {
 	logrus.Debug("waiting pair signal")
 	err := <-pair.Exit
 	logrus.Debug("Response TCP")
@@ -261,9 +263,7 @@ func (pair *ConnectionPair) ResponseTCP(resp impl.CoreResponse) {
 		logrus.Error(err)
 		resp.Status = -1
 	}
-
-	enc := gob.NewEncoder(pair.impl.DialerWriter())
-	err = enc.Encode(resp)
+	err = gob.NewEncoder(pair.impl.Writer()).Encode(resp)
 	if err != nil {
 		logrus.Error(err)
 		return

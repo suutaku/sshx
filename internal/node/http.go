@@ -9,8 +9,6 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"
 	"github.com/suutaku/go-vnc/pkg/vnc"
-	"github.com/suutaku/sshx/internal/utils"
-	"github.com/suutaku/sshx/pkg/impl"
 )
 
 var upgrader = websocket.Upgrader{
@@ -43,23 +41,23 @@ func (n *Node) ServeHTTPAndWS() {
 
 		defer conn.Close()
 
-		dal := impl.NewVNCImpl()
-		param := impl.ImplParam{
-			Config: *n.ConfManager.Conf,
-			HostId: deviceId[0],
-		}
-		dal.Init(param)
-		defer dal.Close()
+		// dal := impl.NewVNCImpl()
+		// param := impl.ImplParam{
+		// 	Config: *n.ConfManager.Conf,
+		// 	HostId: deviceId[0],
+		// }
+		// dal.Init(param)
+		// defer dal.Close()
 
-		err = dal.Dial()
-		if err != nil {
-			logrus.Error(err)
-			return
-		}
-		underConn := conn.UnderlyingConn()
-		// utils.Pipe(&underConn, dal.Conn())
-		utils.PipeWR(underConn, dal.DialerReader(), underConn, dal.DialerWriter())
-		logrus.Debug("end of gorutine")
+		// err = dal.Dial()
+		// if err != nil {
+		// 	logrus.Error(err)
+		// 	return
+		// }
+		// underConn := conn.UnderlyingConn()
+		// // utils.Pipe(&underConn, dal.Conn())
+		// utils.PipeWR(underConn, dal.DialerReader(), underConn, dal.DialerWriter())
+		// logrus.Debug("end of gorutine")
 
 	})
 	logrus.Info("servce http at port ", n.ConfManager.Conf.LocalHTTPPort)

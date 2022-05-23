@@ -86,6 +86,9 @@ func ClearKnownHosts(subStr string) {
 }
 
 func NewConfManager(homePath string) *ConfManager {
+	if homePath == "" {
+		homePath = utils.GetSSHXHome()
+	}
 	var tmp Configure
 	vp := viper.New()
 	vp.SetConfigName(".sshx_config")

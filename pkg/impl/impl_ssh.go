@@ -1,9 +1,7 @@
 package impl
 
 import (
-	"crypto/x509"
 	"encoding/base64"
-	"encoding/gob"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -19,6 +17,7 @@ import (
 
 	"github.com/povsister/scp"
 	"github.com/sirupsen/logrus"
+	"github.com/suutaku/sshx/pkg/conf"
 	"github.com/suutaku/sshx/pkg/types"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/knownhosts"
@@ -29,22 +28,171 @@ const NumberOfPrompts = 3
 
 var keyErr *knownhosts.KeyError
 
-type SshImpl struct {
-	conn           *net.Conn
-	config         ssh.ClientConfig
-	localEntryAddr string
-	localSSHAddr   string
-	x11            bool
-	hostId         string
-	pairId         string
-	copyIdOpt      bool
+type SSH struct {
+	BaseImpl
+	X11       bool
+	Address   string
+	CopyIdOpt bool
+	Identify  string
+	config    ssh.ClientConfig
 }
 
-func NewSshImpl() *SshImpl {
-	return &SshImpl{}
+func NewSSH(address string, x11 bool, ident string, copyId bool) *SSH {
+	return &SSH{
+		X11:       x11,
+		Address:   address,
+		CopyIdOpt: copyId,
+		Identify:  ident,
+	}
 }
 
-func (dal *SshImpl) passwordCallback() (string, error) {
+func (s *SSH) Code() int32 {
+	return types.APP_TYPE_SSH
+}
+
+func (s *SSH) Preper() error {
+	s.config = ssh.ClientConfig{
+		HostKeyCallback: ssh.HostKeyCallback(hostKeyCallback),
+		Timeout:         timeout,
+	}
+	s.privateKeyOption()
+	err := s.decodeAddress()
+	return err
+}
+
+func (s *SSH) Dial() error {
+	return nil
+}
+
+func (s *SSH) Response() error {
+	cm := conf.NewConfManager("")
+
+	logrus.Debug("Dail local addr ", cm.Conf.LocalSSHPort)
+	conn, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", cm.Conf.LocalSSHPort))
+	if err != nil {
+		return err
+	}
+	s.PipeServer = conn
+	return nil
+}
+
+func (s *SSH) privateKeyOption() {
+	if s.Identify == "" {
+		s.Identify = path.Join(os.Getenv("HOME"), ".ssh", "id_rsa")
+	}
+	pemBytes, err := ioutil.ReadFile(s.Identify)
+	if err != nil {
+		logrus.Printf("Reading private key file failed %v", err)
+		return
+	}
+	// create signer
+	signer, err := SignerFromPem(pemBytes, nil)
+	if err != nil {
+		logrus.Error(err)
+		return
+	}
+	s.config.Auth = append(s.config.Auth, ssh.PublicKeys(signer))
+}
+
+func (s *SSH) decodeAddress() error {
+	var userName, addr string
+	sps := strings.Split(s.Address, "@")
+	if len(sps) < 2 {
+		user, err := user.Current()
+		if err != nil {
+			return err
+		}
+		userName = user.Username
+		addr = sps[0]
+	} else {
+		userName = sps[0]
+		addr = sps[1]
+	}
+	s.config.User = userName
+	s.HId = addr
+	return nil
+}
+
+// dial remote sshd with opened wrtc connection
+func (s *SSH) OpenTerminal(conn net.Conn) error {
+	logrus.Debug("dialRemoteAndOpenTerminal")
+	s.config.Auth = append(s.config.Auth, ssh.RetryableAuthMethod(ssh.PasswordCallback(s.passwordCallback), NumberOfPrompts))
+	c, chans, reqs, err := ssh.NewClientConn(conn, "", &s.config)
+	if err != nil {
+		return err
+	}
+	logrus.Debug("conn ok")
+	client := ssh.NewClient(c, chans, reqs)
+	if client == nil {
+		return fmt.Errorf("cannot create ssh client")
+	}
+	logrus.Debug("client ok")
+	session, err := client.NewSession()
+	if err != nil {
+		return err
+	}
+	logrus.Debug("session")
+	if s.CopyIdOpt {
+		scpClient, err := scp.NewClientFromExistingSSH(client, &scp.ClientOption{})
+		if err != nil {
+			return nil
+		}
+		pubKeyPath := path.Join(os.Getenv("HOME"), ".ssh", "id_rsa.pub")
+		tmplatePath := path.Join("tmp", "")
+		targetKey := path.Join("~", "./.ssh/authorized_keys")
+		err = scpClient.CopyFileToRemote(pubKeyPath, tmplatePath, &scp.FileTransferOption{Perm: os.FileMode(0600)})
+		if err != nil {
+			logrus.Warn(err)
+		} else {
+			session.Run("cat " + tmplatePath + " >> " + targetKey)
+			session.Run("rm " + tmplatePath)
+		}
+
+		return nil
+
+	}
+	if s.X11 {
+		logrus.Debug("x11 enable")
+		x11Request(session, client)
+	}
+	fd := int(os.Stdin.Fd())
+	state, err := terminal.MakeRaw(fd)
+	if err != nil {
+		return err
+	}
+	w, h, err := terminal.GetSize(fd)
+	if err != nil {
+		return err
+	}
+	modes := ssh.TerminalModes{
+		ssh.ECHO:          1,
+		ssh.TTY_OP_ISPEED: 14400,
+		ssh.TTY_OP_OSPEED: 14400,
+	}
+	term := os.Getenv("TERM")
+	if term == "" {
+		term = "xterm-256color"
+	}
+	if err := session.RequestPty(term, h, w, modes); err != nil {
+		return err
+	}
+	logrus.Debug("pty ok")
+	session.Stdout = os.Stdout
+	session.Stderr = os.Stderr
+	session.Stdin = os.Stdin
+	if err := session.Shell(); err != nil {
+		return err
+	}
+	logrus.Debug("shell ok")
+	defer session.Close()
+	defer client.Close()
+	defer terminal.Restore(fd, state)
+	logrus.Debug("wait session")
+	return session.Wait()
+
+}
+
+func (dal *SSH) passwordCallback() (string, error) {
 	logrus.Debug("password callback")
 	fmt.Print("Password: ")
 	b, _ := terminal.ReadPassword(int(syscall.Stdin))
@@ -116,311 +264,6 @@ func addHostKey(host string, remote net.Addr, pubKey ssh.PublicKey) error {
 	return fileErr
 }
 
-func (s *SshImpl) Init(param ImplParam) {
-	s.config = ssh.ClientConfig{
-		HostKeyCallback: ssh.HostKeyCallback(hostKeyCallback),
-		Timeout:         timeout,
-	}
-	s.conn = param.Conn
-	s.localEntryAddr = fmt.Sprintf("127.0.0.1:%d", param.Config.LocalTCPPort)
-	s.localSSHAddr = fmt.Sprintf("127.0.0.1:%d", param.Config.LocalSSHPort)
-	s.hostId = param.HostId
-	s.pairId = param.PairId
-}
-
-func (dal *SshImpl) DialerReader() io.Reader {
-	return *dal.conn
-}
-
-func (dal *SshImpl) DialerWriter() io.Writer {
-	return *dal.conn
-}
-
-func (dal *SshImpl) ResponserReader() io.Reader {
-	return *dal.conn
-}
-
-func (dal *SshImpl) ResponserWriter() io.Writer {
-	return *dal.conn
-}
-
-func (dal *SshImpl) Code() int32 {
-	return types.APP_TYPE_SSH
-}
-
-func (dal *SshImpl) SetPairId(id string) {
-	if dal.pairId == "" {
-		dal.pairId = id
-	}
-}
-
-func (dal *SshImpl) Close() {
-	req := NewCoreRequest(dal.Code(), types.OPTION_TYPE_DOWN)
-	req.PairId = []byte(dal.pairId)
-	req.Payload = []byte(dal.hostId)
-
-	// new request, beacuase originnal ssh connection was closed
-	conn, err := net.Dial("tcp", dal.localEntryAddr)
-	if err != nil {
-		return
-	}
-	defer conn.Close()
-	enc := gob.NewEncoder(conn)
-	enc.Encode(req)
-	if dal.conn != nil {
-		(*dal.conn).Close()
-	}
-	logrus.Debug("close ssh impl")
-}
-
-func (s *SshImpl) Response() error {
-	logrus.Debug("Dail local addr ", s.localSSHAddr)
-	conn, err := net.Dial("tcp", s.localSSHAddr)
-	if err != nil {
-		return err
-	}
-	logrus.Debug("Dail local addr ", s.localSSHAddr, " success")
-	s.conn = &conn
-	return nil
-}
-
-func (dal *SshImpl) Dial() error {
-	conn, err := net.Dial("tcp", dal.localEntryAddr)
-	if err != nil {
-		return err
-	}
-	req := NewCoreRequest(dal.Code(), types.OPTION_TYPE_UP)
-	req.PairId = []byte(dal.pairId)
-	req.Payload = []byte(dal.hostId)
-
-	if err := gob.NewEncoder(conn).Encode(req); err != nil {
-		return err
-	}
-	logrus.Debug("waitting TCP Response")
-
-	resp := CoreResponse{}
-	if err := gob.NewDecoder(conn).Decode(&resp); err != nil {
-		return err
-	}
-	logrus.Debug("TCP Response comming")
-	if resp.Status != 0 {
-		return err
-	}
-	dal.pairId = string(resp.PairId)
-	dal.conn = &conn
-	err = dal.dialRemoteAndOpenTerminal()
-	if err != nil {
-		dal.Close()
-		return err
-	}
-	return nil
-}
-
-// dial remote sshd with opened wrtc connection
-func (s *SshImpl) dialRemoteAndOpenTerminal() error {
-	logrus.Debug("dialRemoteAndOpenTerminal")
-	s.config.Auth = append(s.config.Auth, ssh.RetryableAuthMethod(ssh.PasswordCallback(s.passwordCallback), NumberOfPrompts))
-	c, chans, reqs, err := ssh.NewClientConn(*s.conn, "", &s.config)
-	if err != nil {
-		return err
-	}
-	logrus.Debug("conn ok")
-	client := ssh.NewClient(c, chans, reqs)
-	if client == nil {
-		return fmt.Errorf("cannot create ssh client")
-	}
-	logrus.Debug("client ok")
-	session, err := client.NewSession()
-	if err != nil {
-		return err
-	}
-	logrus.Debug("session")
-	if s.copyIdOpt {
-		scpClient, err := scp.NewClientFromExistingSSH(client, &scp.ClientOption{})
-		if err != nil {
-			return nil
-		}
-		pubKeyPath := path.Join(os.Getenv("HOME"), ".ssh", "id_rsa.pub")
-		tmplatePath := path.Join("tmp", "")
-		targetKey := path.Join("~", "./.ssh/authorized_keys")
-		err = scpClient.CopyFileToRemote(pubKeyPath, tmplatePath, &scp.FileTransferOption{Perm: os.FileMode(0600)})
-		if err != nil {
-			logrus.Warn(err)
-		} else {
-			session.Run("cat " + tmplatePath + " >> " + targetKey)
-			session.Run("rm " + tmplatePath)
-		}
-
-		return nil
-
-	}
-	if s.x11 {
-		x11Request(session, client)
-	}
-	fd := int(os.Stdin.Fd())
-	state, err := terminal.MakeRaw(fd)
-	if err != nil {
-		return err
-	}
-	w, h, err := terminal.GetSize(fd)
-	if err != nil {
-		return err
-	}
-	modes := ssh.TerminalModes{
-		ssh.ECHO:          1,
-		ssh.TTY_OP_ISPEED: 14400,
-		ssh.TTY_OP_OSPEED: 14400,
-	}
-	term := os.Getenv("TERM")
-	if term == "" {
-		term = "xterm-256color"
-	}
-	if err := session.RequestPty(term, h, w, modes); err != nil {
-		return err
-	}
-	logrus.Debug("pty ok")
-	session.Stdout = os.Stdout
-	session.Stderr = os.Stderr
-	session.Stdin = os.Stdin
-	if err := session.Shell(); err != nil {
-		return err
-	}
-	logrus.Debug("shell ok")
-	defer session.Close()
-	defer client.Close()
-	defer terminal.Restore(fd, state)
-
-	if err := session.Wait(); err != nil {
-		req := NewCoreRequest(s.Code(), types.OPTION_TYPE_DOWN)
-		req.PairId = []byte(s.pairId)
-		req.Payload = []byte(s.hostId)
-
-		// new request, beacuase originnal ssh connection was closed
-		conn, err := net.Dial("tcp", s.localEntryAddr)
-		if err != nil {
-			return err
-		}
-		defer conn.Close()
-		enc := gob.NewEncoder(conn)
-		enc.Encode(req)
-		if e, ok := err.(*ssh.ExitError); ok {
-			switch e.ExitStatus() {
-			case 130:
-				return nil
-			}
-		}
-		return err
-	}
-	return nil
-
-}
-
-func (dal *SshImpl) PrivateKeyOption(keyPath string) {
-	if keyPath == "" {
-		keyPath = path.Join(os.Getenv("HOME"), ".ssh", "id_rsa")
-	}
-	pemBytes, err := ioutil.ReadFile(keyPath)
-	if err != nil {
-		logrus.Printf("Reading private key file failed %v", err)
-		return
-	}
-	// create signer
-	signer, err := SignerFromPem(pemBytes, nil)
-	if err != nil {
-		logrus.Error(err)
-		return
-	}
-	dal.config.Auth = append(dal.config.Auth, ssh.PublicKeys(signer))
-}
-
-func (dal *SshImpl) X11Option(enable bool) {
-	dal.x11 = enable
-}
-
-const (
-	ADDR_TYPE_IPV4 = iota
-	ADDR_TYPE_IPV6
-	ADDR_TYPE_DOMAIN
-	ADDR_TYPE_ID
-)
-
-func AddrType(addrStr string) int {
-	addr := net.ParseIP(addrStr)
-	if addr != nil {
-		return ADDR_TYPE_IPV4
-	}
-	if strings.Contains(addrStr, ".") {
-		return ADDR_TYPE_DOMAIN
-	}
-
-	return ADDR_TYPE_ID
-
-}
-
-func (dal *SshImpl) DecodeAddress(addrStr string) error {
-	var userName, addr string
-	sps := strings.Split(addrStr, "@")
-	if len(sps) < 2 {
-		user, err := user.Current()
-		if err != nil {
-			return err
-		}
-		userName = user.Username
-		addr = sps[0]
-	} else {
-		userName = sps[0]
-		addr = sps[1]
-	}
-	dal.config.User = userName
-	dal.hostId = addr
-	return nil
-}
-
-func SignerFromPem(pemBytes []byte, password []byte) (ssh.Signer, error) {
-
-	// read pem block
-	err := errors.New("pem decode failed, no key found")
-	pemBlock, _ := pem.Decode(pemBytes)
-	if pemBlock == nil {
-		return nil, err
-	}
-
-	signer, err := ssh.ParsePrivateKey(pemBytes)
-	if err != nil {
-		return nil, fmt.Errorf("parsing plain private key failed %v", err)
-	}
-
-	return signer, nil
-}
-
-func parsePemBlock(block *pem.Block) (interface{}, error) {
-	switch block.Type {
-	case "RSA PRIVATE KEY":
-		key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
-		if err != nil {
-			return nil, fmt.Errorf("parsing PKCS private key failed %v", err)
-		} else {
-			return key, nil
-		}
-	case "EC PRIVATE KEY":
-		key, err := x509.ParseECPrivateKey(block.Bytes)
-		if err != nil {
-			return nil, fmt.Errorf("parsing EC private key failed %v", err)
-		} else {
-			return key, nil
-		}
-	case "DSA PRIVATE KEY":
-		key, err := ssh.ParseDSAPrivateKey(block.Bytes)
-		if err != nil {
-			return nil, fmt.Errorf("parsing DSA private key failed %v", err)
-		} else {
-			return key, nil
-		}
-	default:
-		return nil, fmt.Errorf("parsing private key failed, unsupported key type %q", block.Type)
-	}
-}
-
 /*
 	X11 tools
 */
@@ -486,6 +329,19 @@ func forwardX11Socket(channel ssh.Channel) {
 	channel.Close()
 }
 
-func (dal *SshImpl) CopyId() {
-	dal.copyIdOpt = true
+func SignerFromPem(pemBytes []byte, password []byte) (ssh.Signer, error) {
+
+	// read pem block
+	err := errors.New("pem decode failed, no key found")
+	pemBlock, _ := pem.Decode(pemBytes)
+	if pemBlock == nil {
+		return nil, err
+	}
+
+	signer, err := ssh.ParsePrivateKey(pemBytes)
+	if err != nil {
+		return nil, fmt.Errorf("parsing plain private key failed %v", err)
+	}
+
+	return signer, nil
 }

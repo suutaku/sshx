@@ -3,8 +3,8 @@ package main
 import (
 	cli "github.com/jawher/mow.cli"
 	"github.com/sirupsen/logrus"
-	"github.com/suutaku/sshx/pkg/conf"
 	"github.com/suutaku/sshx/pkg/impl"
+	"github.com/suutaku/sshx/pkg/types"
 )
 
 func cmdCopyId(cmd *cli.Cmd) {
@@ -14,30 +14,19 @@ func cmdCopyId(cmd *cli.Cmd) {
 		if addr == nil || *addr == "" {
 			return
 		}
-		cm := conf.NewConfManager(getRootPath())
-		dialer := impl.NewSshImpl()
-
-		// init dialer
-		param := impl.ImplParam{
-			Config: *cm.Conf,
-		}
-		dialer.Init(param)
-
-		// parse user name
-		err := dialer.DecodeAddress(*addr)
+		imp := impl.NewSSH(*addr, false, "", false)
+		err := imp.Preper()
 		if err != nil {
 			logrus.Error(err)
 			return
 		}
-		dialer.CopyId()
-		// parse client option
-		logrus.Debug("cmd connect")
-		err = dialer.Dial()
+		sender := impl.NewSender(imp, types.OPTION_TYPE_UP)
+		conn, err := sender.Send()
 		if err != nil {
-			logrus.Info(err)
+			logrus.Error(err)
 			return
 		}
-		dialer.Close()
+		imp.OpenTerminal(conn)
 	}
 }
 
@@ -52,31 +41,18 @@ func cmdConnect(cmd *cli.Cmd) {
 		if addr == nil || *addr == "" {
 			return
 		}
-		cm := conf.NewConfManager(getRootPath())
-		dialer := impl.NewSshImpl()
-
-		// init dialer
-		param := impl.ImplParam{
-			Config: *cm.Conf,
-		}
-		dialer.Init(param)
-
-		// parse user name
-		err := dialer.DecodeAddress(*addr)
+		imp := impl.NewSSH(*addr, *tmp, *ident, false)
+		err := imp.Preper()
 		if err != nil {
 			logrus.Error(err)
 			return
 		}
-		// parse client option
-		dialer.PrivateKeyOption(*ident)
-		// parse x11 option
-		dialer.X11Option(*tmp)
-		logrus.Debug("cmd connect")
-		err = dialer.Dial()
+		sender := impl.NewSender(imp, types.OPTION_TYPE_UP)
+		conn, err := sender.Send()
 		if err != nil {
-			logrus.Info(err)
+			logrus.Error(err)
 			return
 		}
-		dialer.Close()
+		imp.OpenTerminal(conn)
 	}
 }

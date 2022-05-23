@@ -5,8 +5,6 @@ import (
 	"net"
 	"reflect"
 	"time"
-
-	"github.com/suutaku/sshx/pkg/conf"
 )
 
 const flagLen = 8
@@ -14,86 +12,35 @@ const timeout = 30 * time.Second
 
 // Impl represents an application implementation
 type Impl interface {
-	// Set implementation specifiy configure
-	Init(ImplParam)
+	Init()
 	// Return impl code
 	Code() int32
-	// Writer of dialer
-	DialerWriter() io.Writer
-	// Writer of responser
-	ResponserWriter() io.Writer
+	// Set connection for non-detach process
+	SetConn(net.Conn)
+	// Writer
+	Writer() io.Writer
 	// Reader of dialer
-	DialerReader() io.Reader
-	// Reader of responser
-	ResponserReader() io.Reader
+	Reader() io.Reader
 	// Response of remote device call
 	Response() error
 	// Call remote device
 	Dial() error
+	// Preper
+	Preper() error
 	// Close Impl connection
 	Close()
-	// Set pairId dynamiclly
-	SetPairId(id string)
-}
-
-// initial parameters
-type ImplParam struct {
-	Config conf.Configure
-	HostId string    // Remote host id
-	PairId string    // Connection pair ID using on close
-	Conn   *net.Conn // Local connection handler
-}
-
-// Request struct which send to Local TCP listenner
-type CoreRequest struct {
-	Type    int32 // Request type defined on types
-	PairId  []byte
-	Payload []byte // Application specify payload
-}
-
-func NewCoreRequest(appCode, optCode int32) *CoreRequest {
-	return &CoreRequest{
-		Type: (appCode << flagLen) | optCode,
-	}
-}
-
-func (cr *CoreRequest) GetAppCode() int32 {
-	return cr.Type >> flagLen
-}
-
-func (cr *CoreRequest) GetOptionCode() int32 {
-	return cr.Type & 0xff
-}
-
-// Response struct which recive from Local TCP listenner
-type CoreResponse struct {
-	Type    int32 // Request type defined on types
-	PairId  []byte
-	Status  int32
-	Payload []byte
-}
-
-func NewCoreResponse(appCode, optCode int32) *CoreResponse {
-	return &CoreResponse{
-		Type: (appCode << flagLen) | optCode,
-	}
-}
-
-func (cr *CoreResponse) GetAppCode() int32 {
-	return cr.Type >> flagLen
-}
-
-func (cr *CoreResponse) GetOptionCode() int32 {
-	return cr.Type & 0xff
+	// Get Host Id
+	HostId() string
 }
 
 var registeddApp = []Impl{
-	&SshImpl{},
-	&VNCImpl{},
-	&ScpImpl{},
-	&SfsImpl{},
-	&ProxyImpl{},
-	&StatImpl{},
+	&SSH{},
+	&Proxy{},
+	&SSHFS{},
+	&SCP{},
+	&VNCService{},
+	&VNC{},
+	&STAT{},
 }
 
 func GetImpl(code int32) Impl {

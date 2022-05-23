@@ -33,29 +33,28 @@ func isValidSignalingInfo(input types.SignalingInfo) bool {
 
 func poolId(info types.SignalingInfo) string {
 	if info.ID == 0 {
-		panic("SignalingInfo Id was empty")
+		logrus.Error("SignalingInfo Id was empty")
 	}
 	return fmt.Sprintf("conn_%d", info.ID)
 }
 
-func (node *Node) push(info types.SignalingInfo) error {
-	if !isValidSignalingInfo(info) {
-		panic("invalid SignalingInfo")
+func (node *Node) push(info *types.SignalingInfo) error {
+	if info == nil {
+		return fmt.Errorf("empty target id")
 	}
-	node.sigPush <- info
+	if !isValidSignalingInfo(*info) {
+		logrus.Error("invalid SignalingInfo")
+	}
+	node.sigPush <- *info
 	return nil
 }
 
 func (node *Node) ServeOfferInfo(info types.SignalingInfo) {
-	cvt := impl.CoreRequest{
+	cvt := impl.Sender{
 		Type: info.RemoteRequestType,
 	}
 	iface := impl.GetImpl(cvt.GetAppCode())
-	param := impl.ImplParam{
-		Config: *node.ConfManager.Conf,
-		PairId: poolId(info),
-	}
-	iface.Init(param)
+	iface.Init()
 	pair := NewConnectionPair(node.ConfManager.Conf.RTCConf, iface, node.ConfManager.Conf.ID, info.Source)
 	node.AddPair(poolId(info), pair)
 	err := node.GetPair(poolId(info)).Response(info)
@@ -73,7 +72,7 @@ func (node *Node) ServeOfferInfo(info types.SignalingInfo) {
 		logrus.Error("pair create a nil anwser")
 		return
 	}
-	node.push(*awser)
+	node.push(awser)
 }
 
 func (node *Node) ServePush(info types.SignalingInfo) {
@@ -156,7 +155,7 @@ func (node *Node) SignalCandidate(info types.SignalingInfo, target string, c *we
 	if node.cpPool[poolId(info)] == nil {
 		return
 	}
-	cadInfo := types.SignalingInfo{
+	cadInfo := &types.SignalingInfo{
 		Flag:              types.SIG_TYPE_CANDIDATE,
 		Source:            node.ConfManager.Conf.ID,
 		Candidate:         []byte(c.ToJSON().Candidate),

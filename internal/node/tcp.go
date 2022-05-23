@@ -1,7 +1,6 @@
 package node
 
 import (
-	"bytes"
 	"encoding/gob"
 	"fmt"
 	"net"
@@ -24,59 +23,53 @@ func (node *Node) ServeTCP() {
 			logrus.Error(err)
 			continue
 		}
-		tmp := impl.CoreRequest{}
-		dec := gob.NewDecoder(sock)
-		err = dec.Decode(&tmp)
+		tmp := impl.Sender{}
+		err = gob.NewDecoder(sock).Decode(&tmp)
 		if err != nil {
 			logrus.Debug("read not ok", err)
 			sock.Close()
 			continue
 		}
-
 		switch tmp.GetOptionCode() {
 		case types.OPTION_TYPE_UP:
-			logrus.Debug("up option")
-			iface := impl.GetImpl(tmp.GetAppCode())
-			param := impl.ImplParam{
-				Conn:   &sock,
-				Config: *node.ConfManager.Conf,
+			iface := tmp.GetImpl()
+			if iface == nil {
+				logrus.Error("unknown impl")
+				sock.Close()
+				break
 			}
-			iface.Init(param)
-			pair := NewConnectionPair(node.ConfManager.Conf.RTCConf, iface, node.ConfManager.Conf.ID, string(tmp.Payload))
+			if !tmp.Detach {
+				iface.SetConn(sock)
+			}
+			iface.Init()
+			logrus.Debug("up option")
+			pair := NewConnectionPair(node.ConfManager.Conf.RTCConf, iface, node.ConfManager.Conf.ID, iface.HostId())
 			pair.Dial()
-			info := pair.Offer(string(tmp.Payload), tmp.Type)
-			node.push(*info)
+			info := pair.Offer(string(iface.HostId()), tmp.Type)
+			err = node.push(info)
+			if err != nil {
+				sock.Close()
+				break
+			}
 			pair.PeerConnection.OnICECandidate(func(c *webrtc.ICECandidate) {
-				node.SignalCandidate(*info, string(tmp.Payload), c)
+				node.SignalCandidate(*info, iface.HostId(), c)
 			})
 			node.AddPair(poolId(*info), pair)
-			resp := impl.NewCoreResponse(iface.Code(), types.OPTION_TYPE_UP)
-			resp.PairId = []byte(poolId(*info))
-			go pair.ResponseTCP(*resp)
-
+			if !tmp.Detach {
+				go pair.ResponseTCP(tmp)
+			}
 		case types.OPTION_TYPE_DOWN:
 			logrus.Debug("down option")
 			node.RemovePair(string(tmp.PairId))
 		case types.OPTION_TYPE_STAT:
 			logrus.Debug("stat option")
-			iface := impl.GetImpl(tmp.GetAppCode())
-			param := impl.ImplParam{
-				Conn:   &sock,
-				Config: *node.ConfManager.Conf,
-			}
-			iface.Init(param)
 			res := node.stm.Get()
-			resp := impl.NewCoreResponse(iface.Code(), types.OPTION_TYPE_STAT)
-			buf := bytes.Buffer{}
-			err := gob.NewEncoder(&buf).Encode(res)
+			logrus.Debugf("%#v\n", res)
+			err = gob.NewEncoder(sock).Encode(res)
 			if err != nil {
 				logrus.Error(err)
 			}
-			resp.Payload = buf.Bytes()
-			err = gob.NewEncoder(iface.DialerWriter()).Encode(resp)
-			if err != nil {
-				logrus.Error(err)
-			}
+			logrus.Debug("stat option done")
 		}
 
 	}
