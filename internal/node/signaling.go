@@ -31,9 +31,9 @@ func isValidSignalingInfo(input types.SignalingInfo) bool {
 	return true
 }
 
-func poolId(info types.SignalingInfo) string {
-	if info.ID == 0 {
-		logrus.Error("SignalingInfo Id was empty")
+func poolId(info *types.SignalingInfo) string {
+	if info == nil || info.ID == 0 {
+		return fmt.Sprintf("service_%d", time.Now().Unix())
 	}
 	return fmt.Sprintf("conn_%d", info.ID)
 }
@@ -45,11 +45,11 @@ func (node *Node) push(info *types.SignalingInfo) error {
 	if !isValidSignalingInfo(*info) {
 		logrus.Error("invalid SignalingInfo")
 	}
-	node.sigPush <- *info
+	node.sigPush <- info
 	return nil
 }
 
-func (node *Node) ServeOfferInfo(info types.SignalingInfo) {
+func (node *Node) ServeOfferInfo(info *types.SignalingInfo) {
 	cvt := impl.Sender{
 		Type: info.RemoteRequestType,
 	}
@@ -75,7 +75,7 @@ func (node *Node) ServeOfferInfo(info types.SignalingInfo) {
 	node.push(awser)
 }
 
-func (node *Node) ServePush(info types.SignalingInfo) {
+func (node *Node) ServePush(info *types.SignalingInfo) {
 	buf := bytes.NewBuffer(nil)
 	if err := gob.NewEncoder(buf).Encode(info); err != nil {
 		logrus.Error(err)
@@ -93,12 +93,12 @@ func (node *Node) ServePush(info types.SignalingInfo) {
 	}
 }
 
-func (node *Node) ServeCandidateInfo(info types.SignalingInfo) {
+func (node *Node) ServeCandidateInfo(info *types.SignalingInfo) {
 	logrus.Debug("add candidate")
 	node.GetPair(poolId(info)).AddCandidate(&webrtc.ICECandidateInit{Candidate: string(info.Candidate)}, info.ID)
 }
 
-func (node *Node) ServeAnwserInfo(info types.SignalingInfo) {
+func (node *Node) ServeAnwserInfo(info *types.SignalingInfo) {
 	err := node.GetPair(poolId(info)).MakeConnection(info)
 	if err != nil {
 		logrus.Error(err)
@@ -125,7 +125,7 @@ func (node *Node) ServeSignaling() {
 				}
 			}
 			res.Body.Close()
-			node.sigPull <- info
+			node.sigPull <- &info
 		}
 	}()
 
@@ -148,7 +148,7 @@ func (node *Node) ServeSignaling() {
 	}
 }
 
-func (node *Node) SignalCandidate(info types.SignalingInfo, target string, c *webrtc.ICECandidate) {
+func (node *Node) SignalCandidate(info *types.SignalingInfo, target string, c *webrtc.ICECandidate) {
 	if c == nil {
 		return
 	}

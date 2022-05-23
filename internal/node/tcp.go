@@ -46,15 +46,15 @@ func (node *Node) ServeTCP() {
 			pair := NewConnectionPair(node.ConfManager.Conf.RTCConf, iface, node.ConfManager.Conf.ID, iface.HostId())
 			pair.Dial()
 			info := pair.Offer(string(iface.HostId()), tmp.Type)
+			node.AddPair(poolId(info), pair)
 			err = node.push(info)
 			if err != nil {
 				sock.Close()
 				break
 			}
 			pair.PeerConnection.OnICECandidate(func(c *webrtc.ICECandidate) {
-				node.SignalCandidate(*info, iface.HostId(), c)
+				node.SignalCandidate(info, iface.HostId(), c)
 			})
-			node.AddPair(poolId(*info), pair)
 			if !tmp.Detach {
 				go pair.ResponseTCP(tmp)
 			}
@@ -64,12 +64,10 @@ func (node *Node) ServeTCP() {
 		case types.OPTION_TYPE_STAT:
 			logrus.Debug("stat option")
 			res := node.stm.Get()
-			logrus.Debugf("%#v\n", res)
 			err = gob.NewEncoder(sock).Encode(res)
 			if err != nil {
 				logrus.Error(err)
 			}
-			logrus.Debug("stat option done")
 		}
 
 	}

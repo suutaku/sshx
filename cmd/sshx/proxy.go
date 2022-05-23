@@ -9,14 +9,15 @@ import (
 	"github.com/suutaku/sshx/pkg/types"
 )
 
-// func cmdStopProxy(cmd *cli.Cmd) {
-// 	cmd.Spec = "PID"
-// 	pairId := cmd.StringArg("PID", "", "Connection pair id which can found by using status command")
-// 	cmd.Action = func() {
-// 		cm := conf.NewConfManager(getRootPath())
-// 		imp := impl.NewProxy()
-// 	}
-// }
+func cmdStopProxy(cmd *cli.Cmd) {
+	cmd.Spec = "PID"
+	pairId := cmd.StringArg("PID", "", "Connection pair id which can found by using status command")
+	cmd.Action = func() {
+		sender := impl.NewSender(&impl.Proxy{}, types.OPTION_TYPE_DOWN)
+		sender.PairId = []byte(*pairId)
+		sender.SendDetach()
+	}
+}
 
 func cmdStartProxy(cmd *cli.Cmd) {
 	// cmd.Spec = "-P [-d] ADDR"
@@ -45,5 +46,5 @@ func cmdStartProxy(cmd *cli.Cmd) {
 
 func cmdProxy(cmd *cli.Cmd) {
 	cmd.Command("start", "start proxy service", cmdStartProxy)
-	// cmd.Command("stop", "stop proxy service", cmdStopProxy)
+	cmd.Command("stop", "stop proxy service", cmdStopProxy)
 }

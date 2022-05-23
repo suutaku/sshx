@@ -75,13 +75,19 @@ func (fs *SSHFS) Dial() error {
 	err = fs.sshfs.Mount(opts)
 	if err != nil {
 		logrus.Error(err)
+		fs.Close()
+		return err
 	}
-	fs.sshfs.Unmount()
-	fs.Close()
 	logrus.Info("close sfs impl")
 	return nil
 }
 
 func (fs *SSHFS) Response() error {
 	return nil
+}
+
+func (fs *SSHFS) Close() {
+	fs.BaseImpl.Close()
+	fs.sshfs.Unmount()
+	logrus.Info("close sfs impl")
 }

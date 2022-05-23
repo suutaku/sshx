@@ -53,7 +53,7 @@ func (pair *ConnectionPair) SetId(id int64) {
 }
 
 // create responser
-func (pair *ConnectionPair) Response(info types.SignalingInfo) error {
+func (pair *ConnectionPair) Response(info *types.SignalingInfo) error {
 	pair.Id = info.ID
 	logrus.Debug("pair response")
 	peer, err := webrtc.NewPeerConnection(pair.conf)
@@ -184,7 +184,7 @@ func (pair *ConnectionPair) Offer(target string, reType int32) *types.SignalingI
 	return &info
 }
 
-func (pair *ConnectionPair) Anwser(info types.SignalingInfo) *types.SignalingInfo {
+func (pair *ConnectionPair) Anwser(info *types.SignalingInfo) *types.SignalingInfo {
 	pair.SetId(info.ID)
 	logrus.Debug("pair anwser")
 	if err := pair.PeerConnection.SetRemoteDescription(webrtc.SessionDescription{
@@ -217,7 +217,7 @@ func (pair *ConnectionPair) Anwser(info types.SignalingInfo) *types.SignalingInf
 	}
 }
 
-func (pair *ConnectionPair) MakeConnection(info types.SignalingInfo) error {
+func (pair *ConnectionPair) MakeConnection(info *types.SignalingInfo) error {
 	logrus.Debug("pair make connection")
 	if pair == nil || pair.PeerConnection == nil {
 		return fmt.Errorf("invalid peer connection")

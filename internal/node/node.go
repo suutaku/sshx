@@ -10,16 +10,16 @@ import (
 
 type Node struct {
 	ConfManager *conf.ConfManager
-	sigPull     chan types.SignalingInfo
-	sigPush     chan types.SignalingInfo
+	sigPull     chan *types.SignalingInfo
+	sigPush     chan *types.SignalingInfo
 	cpPool      map[string]*ConnectionPair
 	stm         *StatManager
 }
 
 func NewNode(home string) *Node {
 	return &Node{
-		sigPull:     make(chan types.SignalingInfo, 128),
-		sigPush:     make(chan types.SignalingInfo, 128),
+		sigPull:     make(chan *types.SignalingInfo, 128),
+		sigPush:     make(chan *types.SignalingInfo, 128),
 		ConfManager: conf.NewConfManager(home),
 		cpPool:      make(map[string]*ConnectionPair),
 		stm:         NewStatManager(),
@@ -27,9 +27,7 @@ func NewNode(home string) *Node {
 }
 
 func (node *Node) Start() {
-	go node.ServeHTTPAndWS()
 	go node.ServeSignaling()
-	go node.StartVNCServer()
 	node.ServeTCP()
 }
 

@@ -1,6 +1,7 @@
 package impl
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
@@ -25,7 +26,7 @@ type VNCService struct {
 	VNCPort       int32
 	Running       bool
 	VNCStaticPath string
-	wsconn        *websocket.Conn
+	httpServer    *http.Server
 }
 
 func NewVNCService(port int32) *VNCService {
@@ -45,6 +46,7 @@ func (vnc *VNCService) Preper() error {
 func (vnc *VNCService) Dial() error {
 	vnc.Running = true
 	cm := conf.NewConfManager("")
+	srv := &http.Server{Addr: fmt.Sprintf(":%d", cm.Conf.LocalHTTPPort)}
 	r := mux.NewRouter()
 	s := http.StripPrefix("/", http.FileServer(http.Dir(cm.Conf.VNCStaticPath)))
 	r.PathPrefix("/").Handler(s)
@@ -58,7 +60,6 @@ func (vnc *VNCService) Dial() error {
 			logrus.Error(err)
 			return
 		}
-
 		defer conn.Close()
 
 		imp := NewVNC(deviceId[0])
@@ -78,13 +79,15 @@ func (vnc *VNCService) Dial() error {
 			logrus.Error(err)
 			return
 		}
+		defer inConn.Close()
 		underConn := conn.UnderlyingConn()
 		utils.PipeWR(inConn, underConn, inConn, underConn)
 		logrus.Debug("end of gorutine")
 
 	})
 	logrus.Info("servce http at port ", cm.Conf.LocalHTTPPort)
-	http.ListenAndServe(fmt.Sprintf(":%d", cm.Conf.LocalHTTPPort), nil)
+	vnc.httpServer = srv
+	srv.ListenAndServe()
 	return nil
 }
 
@@ -93,8 +96,5 @@ func (vnc *VNCService) Response() error {
 }
 
 func (vnc *VNCService) Close() {
-	vnc.BaseImpl.Close()
-	if vnc.wsconn != nil {
-		vnc.wsconn.Close()
-	}
+	vnc.httpServer.Shutdown(context.TODO())
 }
