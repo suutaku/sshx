@@ -51,18 +51,20 @@ func (fs *SSHFS) Dial() error {
 	if err != nil {
 		return err
 	}
+	ssht.SetParentId(fs.PairId())
 	fs.HId = ssht.HId
 	sender := NewSender(ssht, types.OPTION_TYPE_UP)
 	conn, err := sender.Send()
 	if err != nil {
 		return err
 	}
-	defer func() {
-		conn.Close()
-		closeSender := NewSender(ssht, types.OPTION_TYPE_DOWN)
-		closeSender.PairId = sender.PairId
-		closeSender.SendDetach()
-	}()
+	defer conn.Close()
+	// defer func() {
+	// 	conn.Close()
+	// 	closeSender := NewSender(ssht, types.OPTION_TYPE_DOWN)
+	// 	closeSender.PairId = sender.PairId
+	// 	closeSender.SendDetach()
+	// }()
 	ssht.config.Auth = append(ssht.config.Auth, ssh.RetryableAuthMethod(ssh.PasswordCallback(ssht.passwordCallback), NumberOfPrompts))
 	c, chans, reqs, err := ssh.NewClientConn(conn, "", &ssht.config)
 	if err != nil {

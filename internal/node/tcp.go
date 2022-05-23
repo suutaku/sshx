@@ -43,10 +43,11 @@ func (node *Node) ServeTCP() {
 			}
 			iface.Init()
 			logrus.Debug("up option")
-			pair := NewConnectionPair(node.ConfManager.Conf.RTCConf, iface, node.ConfManager.Conf.ID, iface.HostId(), &node.stm.CleanChan)
+			pair := NewConnectionPair(node.ConfManager.Conf.RTCConf, iface, node.ConfManager.Conf.ID, iface.HostId(), &node.CleanChan)
 			pair.Dial()
 			info := pair.Offer(string(iface.HostId()), tmp.Type)
 			node.AddPair(poolId(info), pair)
+
 			err = node.push(info)
 			if err != nil {
 				sock.Close()

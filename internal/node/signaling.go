@@ -55,7 +55,7 @@ func (node *Node) ServeOfferInfo(info *types.SignalingInfo) {
 	}
 	iface := impl.GetImpl(cvt.GetAppCode())
 	iface.Init()
-	pair := NewConnectionPair(node.ConfManager.Conf.RTCConf, iface, node.ConfManager.Conf.ID, info.Source, &node.stm.CleanChan)
+	pair := NewConnectionPair(node.ConfManager.Conf.RTCConf, iface, node.ConfManager.Conf.ID, info.Source, &node.CleanChan)
 	node.AddPair(poolId(info), pair)
 	err := node.GetPair(poolId(info)).Response(info)
 	if err != nil {

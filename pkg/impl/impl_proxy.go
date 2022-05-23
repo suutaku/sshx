@@ -66,17 +66,19 @@ func (p *Proxy) doDial(inconn net.Conn) {
 			HId: p.ProxyHostId,
 		},
 	}
+	imp.SetParentId(p.PairId())
 	sender := NewSender(imp, types.OPTION_TYPE_UP)
 	conn, err := sender.Send()
 	if err != nil {
 		logrus.Error(err)
 		return
 	}
-	defer func() {
-		conn.Close()
-		closeSender := NewSender(imp, types.OPTION_TYPE_DOWN)
-		closeSender.PairId = sender.PairId
-		closeSender.SendDetach()
-	}()
+	defer conn.Close()
+	// defer func() {
+	// 	conn.Close()
+	// 	closeSender := NewSender(imp, types.OPTION_TYPE_DOWN)
+	// 	closeSender.PairId = sender.PairId
+	// 	closeSender.SendDetach()
+	// }()
 	utils.Pipe(&inconn, &conn)
 }

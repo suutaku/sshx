@@ -15,6 +15,7 @@ type Node struct {
 	cpPool      map[string]*ConnectionPair
 	stm         *StatManager
 	running     bool
+	CleanChan   chan string
 }
 
 func NewNode(home string) *Node {
@@ -24,22 +25,42 @@ func NewNode(home string) *Node {
 		ConfManager: conf.NewConfManager(home),
 		cpPool:      make(map[string]*ConnectionPair),
 		stm:         NewStatManager(),
+		CleanChan:   make(chan string, 10),
+	}
+}
+
+func (node *Node) WatchPairs() {
+	for node.running {
+		pairId := <-node.CleanChan
+		node.RemovePair(pairId)
+		logrus.Debug("clean request from clean channel ", pairId)
 	}
 }
 
 func (node *Node) Start() {
 	node.running = true
 	go node.ServeSignaling()
-	go node.stm.Start()
+	go node.WatchPairs()
 	node.ServeTCP()
 }
 
 func (node *Node) RemovePair(id string) {
+	children := node.stm.GetChildren(id)
+	// close children
+	for _, v := range children {
+		if node.cpPool[v] != nil {
+			node.cpPool[v].Close()
+			delete(node.cpPool, v)
+		}
+		node.stm.Remove(id)
+	}
+	// close parent
 	if node.cpPool[id] != nil {
 		node.cpPool[id].Close()
 		delete(node.cpPool, id)
 	}
 	node.stm.Remove(id)
+	node.stm.RemoveParent(id)
 }
 func (node *Node) AddPair(id string, pair *ConnectionPair) {
 	if node.cpPool[id] != nil {
@@ -55,6 +76,11 @@ func (node *Node) AddPair(id string, pair *ConnectionPair) {
 		StartTime: time.Now(),
 	}
 	node.stm.Put(stat)
+	pair.impl.SetPairId(id)
+	if pair.impl.ParentId() != "" {
+		logrus.Debug("add child ", id, " to ", pair.impl.ParentId())
+		node.stm.AddChild(pair.impl.ParentId(), id)
+	}
 
 }
 

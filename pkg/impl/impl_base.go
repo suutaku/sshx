@@ -14,6 +14,8 @@ type BaseImpl struct {
 	PipeServer net.Conn
 	HId        string
 	Conn       *net.Conn
+	Parent     string
+	PId        string
 }
 
 func (base *BaseImpl) Init() {
@@ -29,6 +31,22 @@ func (base *BaseImpl) Init() {
 		wg.Wait()
 	}
 
+}
+
+func (base *BaseImpl) PairId() string {
+	return base.PId
+}
+
+func (base *BaseImpl) SetPairId(id string) {
+	base.PId = id
+}
+
+func (base *BaseImpl) ParentId() string {
+	return base.Parent
+}
+
+func (base *BaseImpl) SetParentId(id string) {
+	base.Parent = id
 }
 
 func (base *BaseImpl) SetConn(conn net.Conn) {

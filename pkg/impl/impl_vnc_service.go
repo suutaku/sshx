@@ -68,7 +68,7 @@ func (vnc *VNCService) Dial() error {
 			logrus.Error(err)
 			return
 		}
-
+		imp.SetParentId(vnc.PairId())
 		sender := NewSender(imp, types.OPTION_TYPE_UP)
 		if sender == nil {
 			logrus.Error("cannot create sender")
@@ -79,12 +79,13 @@ func (vnc *VNCService) Dial() error {
 			logrus.Error(err)
 			return
 		}
-		defer func() {
-			conn.Close()
-			closeSender := NewSender(imp, types.OPTION_TYPE_DOWN)
-			closeSender.PairId = sender.PairId
-			closeSender.SendDetach()
-		}()
+		defer conn.Close()
+		// defer func() {
+		// 	conn.Close()
+		// 	closeSender := NewSender(imp, types.OPTION_TYPE_DOWN)
+		// 	closeSender.PairId = sender.PairId
+		// 	closeSender.SendDetach()
+		// }()
 		underConn := conn.UnderlyingConn()
 		utils.PipeWR(inConn, underConn, inConn, underConn)
 		logrus.Debug("end of gorutine")

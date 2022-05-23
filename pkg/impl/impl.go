@@ -31,6 +31,10 @@ type Impl interface {
 	Close()
 	// Get Host Id
 	HostId() string
+	PairId() string
+	SetPairId(string)
+	ParentId() string
+	SetParentId(string)
 }
 
 var registeddApp = []Impl{
