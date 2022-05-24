@@ -98,7 +98,7 @@ func (node *Node) ServeCandidateInfo(info *types.SignalingInfo) {
 	logrus.Debug("add candidate")
 	pair := node.GetPair(poolId(info))
 	if pair == nil {
-		logrus.Warn("pair ", poolId(info), "was empty, cannot serve candidate")
+		logrus.Warn("pair ", poolId(info), " was empty, cannot serve candidate")
 		return
 	}
 	pair.AddCandidate(&webrtc.ICECandidateInit{Candidate: string(info.Candidate)}, info.ID)

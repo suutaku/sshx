@@ -7,7 +7,9 @@ if [ "$platform" = "Linux" ];then
   sudo apt install -y xcb libxcb-xkb-dev x11-xkb-utils libx11-xcb-dev libxkbcommon-x11-dev libxkbcommon-dev
   sudo apt install -y xsel xclip
 fi
-
+echo "preper..."
+go mod tidy
+echo "build..."
 go build -ldflags "-s -w" ./cmd/sshx
 go build -ldflags "-s -w" ./cmd/signaling
 echo "$1"
