@@ -102,5 +102,7 @@ func (vnc *VNCService) Response() error {
 }
 
 func (vnc *VNCService) Close() {
-	vnc.httpServer.Shutdown(context.TODO())
+	if vnc.httpServer != nil {
+		vnc.httpServer.Shutdown(context.TODO())
+	}
 }

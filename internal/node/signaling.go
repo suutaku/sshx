@@ -107,7 +107,7 @@ func (node *Node) ServeCandidateInfo(info *types.SignalingInfo) {
 func (node *Node) ServeAnwserInfo(info *types.SignalingInfo) {
 	pair := node.GetPair(poolId(info))
 	if pair == nil {
-		logrus.Warn("pair for id ", poolId(info), " was empty, cannot serve anwser")
+		logrus.Error("pair for id ", poolId(info), " was empty, cannot serve anwser")
 		return
 	}
 	err := pair.MakeConnection(info)

@@ -46,6 +46,7 @@ func (node *Node) Start() {
 
 func (node *Node) RemovePair(id string) {
 	children := node.stm.GetChildren(id)
+	logrus.Debug("ready to clear children ", children)
 	// close children
 	for _, v := range children {
 		if node.cpPool[v] != nil {
@@ -67,10 +68,10 @@ func (node *Node) AddPair(pair *ConnectionPair) {
 	// 	logrus.Warn("recover connection pair ", id)
 	// 	node.RemovePair(id)
 	// }
-	node.cpPool[pair.PoolIdStr()] = pair
 	if pair == nil {
 		return
 	}
+	node.cpPool[pair.PoolIdStr()] = pair
 	stat := types.Status{
 		PairId:    pair.PoolIdStr(),
 		TargetId:  pair.targetId,

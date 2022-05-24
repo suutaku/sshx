@@ -47,7 +47,7 @@ func NewConnectionPair(conf webrtc.Configuration, impl impl.Impl, nodeId string,
 		nodeId:         nodeId,
 		targetId:       targetId,
 		stmChan:        stmChan,
-		poolId:         time.Now().Unix(),
+		poolId:         time.Now().UnixNano(),
 	}
 }
 
@@ -241,7 +241,7 @@ func (pair *ConnectionPair) MakeConnection(info *types.SignalingInfo) error {
 		Type: webrtc.SDPTypeAnswer,
 		SDP:  info.SDP,
 	}); err != nil {
-		logrus.Error("make connection rtc error:", err)
+		logrus.Error("make connection rtc error: ", pair.PoolIdStr(), " ", err)
 		pair.Close()
 		return err
 	}
@@ -252,7 +252,7 @@ func (pair *ConnectionPair) MakeConnection(info *types.SignalingInfo) error {
 func (pair *ConnectionPair) AddCandidate(ca *webrtc.ICECandidateInit, id int64) error {
 	if pair != nil && id == pair.PoolId() {
 		if !pair.IsRemoteDescriptionSet() {
-			logrus.Warn("waiting remote description be set")
+			logrus.Warn("waiting remote description be set ", pair.PoolIdStr())
 			return fmt.Errorf("remote description NOT set")
 		}
 		err := pair.PeerConnection.AddICECandidate(*ca)

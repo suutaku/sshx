@@ -102,6 +102,8 @@ func (fs *SSHFS) Response() error {
 
 func (fs *SSHFS) Close() {
 	fs.BaseImpl.Close()
-	fs.sshfs.Unmount()
+	if fs.sshfs != nil {
+		fs.sshfs.Unmount()
+	}
 	logrus.Info("close sfs impl")
 }
