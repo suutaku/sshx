@@ -39,7 +39,7 @@ func NewConnectionPair(conf webrtc.Configuration, impl impl.Impl, nodeId string,
 		logrus.Error("rtc error:", err)
 		return nil
 	}
-	return &ConnectionPair{
+	ret := &ConnectionPair{
 		PeerConnection: pc,
 		conf:           conf,
 		Exit:           make(chan error, 10),
@@ -49,6 +49,9 @@ func NewConnectionPair(conf webrtc.Configuration, impl impl.Impl, nodeId string,
 		stmChan:        stmChan,
 		poolId:         time.Now().UnixNano(),
 	}
+
+	impl.SetPairId(ret.PoolIdStr())
+	return ret
 }
 
 func (pair *ConnectionPair) PoolId() int64 {

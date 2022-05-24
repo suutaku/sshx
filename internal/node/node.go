@@ -79,7 +79,6 @@ func (node *Node) AddPair(pair *ConnectionPair) {
 		StartTime: time.Now(),
 	}
 	node.stm.Put(stat)
-	pair.impl.SetPairId(pair.PoolIdStr())
 	if pair.impl.ParentId() != "" {
 		logrus.Debug("add child ", pair.PoolIdStr(), " to ", pair.impl.ParentId())
 		node.stm.AddChild(pair.impl.ParentId(), pair.PoolIdStr())
