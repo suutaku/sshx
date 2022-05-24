@@ -170,7 +170,7 @@ func (node *Node) SignalCandidate(info *types.SignalingInfo, target string, c *w
 		Flag:              types.SIG_TYPE_CANDIDATE,
 		Source:            node.ConfManager.Conf.ID,
 		Candidate:         []byte(c.ToJSON().Candidate),
-		ID:                node.cpPool[poolId(info)].Id,
+		ID:                info.ID,
 		RemoteRequestType: info.RemoteRequestType,
 		Target:            target,
 	}

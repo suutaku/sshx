@@ -24,7 +24,6 @@ func (s *Wrapper) Write(b []byte) (int, error) {
 
 type ConnectionPair struct {
 	*webrtc.PeerConnection
-	Id       int64
 	conf     webrtc.Configuration
 	Exit     chan error
 	impl     impl.Impl
@@ -64,10 +63,6 @@ func (pair *ConnectionPair) GetImpl() impl.Impl {
 	return pair.impl
 }
 
-func (pair *ConnectionPair) SetId(id int64) {
-	pair.Id = id
-}
-
 func (pair *ConnectionPair) ResetPoolId(id int64) {
 	logrus.Debug("reset pool id from ", pair.poolId, " to ", id)
 	pair.poolId = id
@@ -75,7 +70,6 @@ func (pair *ConnectionPair) ResetPoolId(id int64) {
 
 // create responser
 func (pair *ConnectionPair) Response(info *types.SignalingInfo) error {
-	pair.Id = info.ID
 	logrus.Debug("pair response")
 	peer, err := webrtc.NewPeerConnection(pair.conf)
 	if err != nil {
@@ -203,12 +197,10 @@ func (pair *ConnectionPair) Offer(target string, reType int32) *types.SignalingI
 		RemoteRequestType: reType,
 		Source:            pair.nodeId,
 	}
-	pair.SetId(info.ID)
 	return &info
 }
 
 func (pair *ConnectionPair) Anwser(info *types.SignalingInfo) *types.SignalingInfo {
-	pair.SetId(info.ID)
 	logrus.Debug("pair anwser")
 	if err := pair.PeerConnection.SetRemoteDescription(webrtc.SessionDescription{
 		Type: webrtc.SDPTypeOffer,
@@ -258,14 +250,14 @@ func (pair *ConnectionPair) MakeConnection(info *types.SignalingInfo) error {
 }
 
 func (pair *ConnectionPair) AddCandidate(ca *webrtc.ICECandidateInit, id int64) error {
-	if pair != nil && id == pair.Id {
+	if pair != nil && id == pair.PoolId() {
 		if !pair.IsRemoteDescriptionSet() {
 			logrus.Warn("waiting remote description be set")
 			return fmt.Errorf("remote description NOT set")
 		}
 		err := pair.PeerConnection.AddICECandidate(*ca)
 		if err != nil {
-			logrus.Error(err, pair.Id, id)
+			logrus.Error(err, pair.PoolId(), id)
 			return err
 		}
 	} else {
