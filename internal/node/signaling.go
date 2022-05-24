@@ -32,8 +32,8 @@ func isValidSignalingInfo(input types.SignalingInfo) bool {
 }
 
 func poolId(info *types.SignalingInfo) string {
-	if info == nil || info.ID == 0 {
-		return fmt.Sprintf("service_%d", time.Now().Unix())
+	if info.ID == 0 {
+		panic("info id was empty")
 	}
 	return fmt.Sprintf("conn_%d", info.ID)
 }
@@ -56,18 +56,19 @@ func (node *Node) ServeOfferInfo(info *types.SignalingInfo) {
 	iface := impl.GetImpl(cvt.GetAppCode())
 	iface.Init()
 	pair := NewConnectionPair(node.ConfManager.Conf.RTCConf, iface, node.ConfManager.Conf.ID, info.Source, &node.CleanChan)
-	node.AddPair(poolId(info), pair)
-	err := node.GetPair(poolId(info)).Response(info)
+	pair.ResetPoolId(info.ID)
+	node.AddPair(pair)
+	err := pair.Response(info)
 	if err != nil {
 		logrus.Error(err)
 		return
 	}
-	node.GetPair(poolId(info)).PeerConnection.OnICECandidate(func(c *webrtc.ICECandidate) {
+	pair.PeerConnection.OnICECandidate(func(c *webrtc.ICECandidate) {
 		logrus.Debug("send candidate")
 		node.SignalCandidate(info, info.Source, c)
 	})
 
-	awser := node.GetPair(poolId(info)).Anwser(info)
+	awser := pair.Anwser(info)
 	if awser == nil {
 		logrus.Error("pair create a nil anwser")
 		return
@@ -95,11 +96,21 @@ func (node *Node) ServePush(info *types.SignalingInfo) {
 
 func (node *Node) ServeCandidateInfo(info *types.SignalingInfo) {
 	logrus.Debug("add candidate")
-	node.GetPair(poolId(info)).AddCandidate(&webrtc.ICECandidateInit{Candidate: string(info.Candidate)}, info.ID)
+	pair := node.GetPair(poolId(info))
+	if pair == nil {
+		logrus.Warn("pair ", poolId(info), "was empty, cannot serve candidate")
+		return
+	}
+	pair.AddCandidate(&webrtc.ICECandidateInit{Candidate: string(info.Candidate)}, info.ID)
 }
 
 func (node *Node) ServeAnwserInfo(info *types.SignalingInfo) {
-	err := node.GetPair(poolId(info)).MakeConnection(info)
+	pair := node.GetPair(poolId(info))
+	if pair == nil {
+		logrus.Warn("pair for id ", poolId(info), " was empty, cannot serve anwser")
+		return
+	}
+	err := pair.MakeConnection(info)
 	if err != nil {
 		logrus.Error(err)
 	}

@@ -62,24 +62,26 @@ func (node *Node) RemovePair(id string) {
 	node.stm.Remove(id)
 	node.stm.RemoveParent(id)
 }
-func (node *Node) AddPair(id string, pair *ConnectionPair) {
-	if node.cpPool[id] != nil {
-		logrus.Warn("recover connection pair ", id)
-		node.RemovePair(id)
+func (node *Node) AddPair(pair *ConnectionPair) {
+	// if node.cpPool[id] != nil {
+	// 	logrus.Warn("recover connection pair ", id)
+	// 	node.RemovePair(id)
+	// }
+	node.cpPool[pair.PoolIdStr()] = pair
+	if pair == nil {
+		return
 	}
-	node.cpPool[id] = pair
-	pair.SetPoolId(id)
 	stat := types.Status{
-		PairId:    id,
+		PairId:    pair.PoolIdStr(),
 		TargetId:  pair.targetId,
 		ImplType:  pair.impl.Code(),
 		StartTime: time.Now(),
 	}
 	node.stm.Put(stat)
-	pair.impl.SetPairId(id)
+	pair.impl.SetPairId(pair.PoolIdStr())
 	if pair.impl.ParentId() != "" {
-		logrus.Debug("add child ", id, " to ", pair.impl.ParentId())
-		node.stm.AddChild(pair.impl.ParentId(), id)
+		logrus.Debug("add child ", pair.PoolIdStr(), " to ", pair.impl.ParentId())
+		node.stm.AddChild(pair.impl.ParentId(), pair.PoolIdStr())
 	}
 
 }

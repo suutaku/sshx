@@ -31,7 +31,7 @@ type ConnectionPair struct {
 	nodeId   string
 	targetId string
 	stmChan  *chan string
-	poolId   string
+	poolId   int64
 }
 
 func NewConnectionPair(conf webrtc.Configuration, impl impl.Impl, nodeId string, targetId string, stmChan *chan string) *ConnectionPair {
@@ -48,7 +48,16 @@ func NewConnectionPair(conf webrtc.Configuration, impl impl.Impl, nodeId string,
 		nodeId:         nodeId,
 		targetId:       targetId,
 		stmChan:        stmChan,
+		poolId:         time.Now().Unix(),
 	}
+}
+
+func (pair *ConnectionPair) PoolId() int64 {
+	return pair.poolId
+}
+
+func (pair *ConnectionPair) PoolIdStr() string {
+	return fmt.Sprintf("conn_%d", pair.poolId)
 }
 
 func (pair *ConnectionPair) GetImpl() impl.Impl {
@@ -59,7 +68,8 @@ func (pair *ConnectionPair) SetId(id int64) {
 	pair.Id = id
 }
 
-func (pair *ConnectionPair) SetPoolId(id string) {
+func (pair *ConnectionPair) ResetPoolId(id int64) {
+	logrus.Debug("reset pool id from ", pair.poolId, " to ", id)
 	pair.poolId = id
 }
 
@@ -162,7 +172,7 @@ func (pair *ConnectionPair) Close() {
 	logrus.Debug("close pair")
 	if pair.PeerConnection != nil {
 		pair.PeerConnection.Close()
-		(*pair.stmChan) <- pair.poolId
+		(*pair.stmChan) <- pair.PoolIdStr()
 	}
 	if pair.impl != nil {
 		pair.impl.Close()
@@ -186,7 +196,7 @@ func (pair *ConnectionPair) Offer(target string, reType int32) *types.SignalingI
 		return nil
 	}
 	info := types.SignalingInfo{
-		ID:                time.Now().UnixNano(),
+		ID:                pair.PoolId(),
 		Flag:              types.SIG_TYPE_OFFER,
 		Target:            pair.targetId,
 		SDP:               offer.SDP,
