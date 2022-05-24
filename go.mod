@@ -29,5 +29,3 @@ require (
 	golang.org/x/term v0.0.0-20220411215600-e5f449aeb171 // indirect
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 )
-
-// replace github.com/suutaku/go-sshfs => /Users/john/Desktop/work/go-sshfs
