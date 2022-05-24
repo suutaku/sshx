@@ -5,22 +5,17 @@ import (
 
 	cli "github.com/jawher/mow.cli"
 	"github.com/sirupsen/logrus"
-	"github.com/suutaku/sshx/pkg/conf"
 	"github.com/suutaku/sshx/pkg/impl"
+	"github.com/suutaku/sshx/pkg/types"
 )
 
 func cmdStopProxy(cmd *cli.Cmd) {
 	cmd.Spec = "PID"
 	pairId := cmd.StringArg("PID", "", "Connection pair id which can found by using status command")
 	cmd.Action = func() {
-		cm := conf.NewConfManager(getRootPath())
-		dialer := impl.NewProxyImpl()
-		param := impl.ImplParam{
-			Config: *cm.Conf,
-			PairId: *pairId,
-		}
-		dialer.Init(param)
-		dialer.Close()
+		sender := impl.NewSender(&impl.Proxy{}, types.OPTION_TYPE_DOWN)
+		sender.PairId = []byte(*pairId)
+		sender.SendDetach()
 	}
 }
 
@@ -37,22 +32,15 @@ func cmdStartProxy(cmd *cli.Cmd) {
 		if addr == nil || *addr == "" {
 			fmt.Println("please set a remote device")
 		}
-		fmt.Println("Press Ctrl+C to close proxy")
 
-		cm := conf.NewConfManager(getRootPath())
-		dialer := impl.NewProxyImpl()
+		proxy := impl.NewProxy(int32(*proxyPort), *addr)
+		proxy.Preper()
 
-		// init dialer
-		param := impl.ImplParam{
-			Config: *cm.Conf,
-			HostId: *addr,
+		sender := impl.NewSender(proxy, types.OPTION_TYPE_UP)
+		_, err := sender.SendDetach()
+		if err != nil {
+			logrus.Error(err)
 		}
-		dialer.Init(param)
-		dialer.SetProxyPort(int32(*proxyPort))
-		if err := dialer.Dial(); err != nil {
-			logrus.Debug(err)
-		}
-
 	}
 }
 

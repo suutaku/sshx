@@ -11,7 +11,9 @@ require (
 	github.com/hanwen/go-fuse/v2 v2.1.0
 	github.com/jawher/mow.cli v1.2.0
 	github.com/jedib0t/go-pretty/v6 v6.3.1
+	github.com/kr/text v0.2.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20220326011226-f1430873d8db // indirect
+	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/pion/webrtc/v3 v3.1.33
 	github.com/pkg/sftp v1.13.4
 	github.com/povsister/scp v0.0.0-20210427074412-33febfd9f13e
@@ -25,4 +27,5 @@ require (
 	golang.org/x/image v0.0.0-20220413100746-70e8d0d3baa9 // indirect
 	golang.org/x/net v0.0.0-20220425223048-2871e0cb64e4
 	golang.org/x/term v0.0.0-20220411215600-e5f449aeb171 // indirect
+	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 )

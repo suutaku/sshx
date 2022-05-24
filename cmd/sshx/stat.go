@@ -1,27 +1,49 @@
 package main
 
 import (
+	"encoding/gob"
+
+	"github.com/suutaku/sshx/pkg/types"
+
 	cli "github.com/jawher/mow.cli"
 	"github.com/sirupsen/logrus"
-	"github.com/suutaku/sshx/pkg/conf"
 	"github.com/suutaku/sshx/pkg/impl"
 )
 
 func cmdStatus(cmd *cli.Cmd) {
-	// cmd.Spec = "[-t]"
-	// typeFilter := cmd.StringOpt("t type","","application type filter")
+	cmd.Spec = "[ -t ]"
+	treeOpt := cmd.BoolOpt("t", false, "display in tree view")
 	cmd.Action = func() {
-		cm := conf.NewConfManager(getRootPath())
-		dialer := impl.NewStatImpl()
-		defer dialer.Close()
-		param := impl.ImplParam{
-			Config: *cm.Conf,
-		}
-		dialer.Init(param)
-		err := dialer.Dial()
+		imp := impl.NewSTAT()
+		err := imp.Preper()
 		if err != nil {
-			logrus.Info(err)
+			logrus.Error(err)
 			return
 		}
+
+		sender := impl.NewSender(imp, types.OPTION_TYPE_STAT)
+		if sender == nil {
+			logrus.Error("cannot create sender")
+			return
+		}
+		conn, err := sender.SendDetach()
+		if err != nil {
+			logrus.Error(err)
+			return
+		}
+		defer conn.Close()
+		logrus.Debug("impl responsed")
+		var pld []types.Status
+		err = gob.NewDecoder(conn).Decode(&pld)
+		if err != nil {
+			logrus.Error(err)
+			return
+		}
+		logrus.Debug("show response")
+		displayStyle := impl.DISPLAY_TABLE
+		if *treeOpt {
+			displayStyle = impl.DISPLAY_TREE
+		}
+		imp.ShowStatus(pld, displayStyle)
 	}
 }

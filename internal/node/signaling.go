@@ -31,52 +31,52 @@ func isValidSignalingInfo(input types.SignalingInfo) bool {
 	return true
 }
 
-func poolId(info types.SignalingInfo) string {
+func poolId(info *types.SignalingInfo) string {
 	if info.ID == 0 {
-		panic("SignalingInfo Id was empty")
+		panic("info id was empty")
 	}
 	return fmt.Sprintf("conn_%d", info.ID)
 }
 
-func (node *Node) push(info types.SignalingInfo) error {
-	if !isValidSignalingInfo(info) {
-		panic("invalid SignalingInfo")
+func (node *Node) push(info *types.SignalingInfo) error {
+	if info == nil {
+		return fmt.Errorf("empty target id")
+	}
+	if !isValidSignalingInfo(*info) {
+		logrus.Error("invalid SignalingInfo")
 	}
 	node.sigPush <- info
 	return nil
 }
 
-func (node *Node) ServeOfferInfo(info types.SignalingInfo) {
-	cvt := impl.CoreRequest{
+func (node *Node) ServeOfferInfo(info *types.SignalingInfo) {
+	cvt := impl.Sender{
 		Type: info.RemoteRequestType,
 	}
 	iface := impl.GetImpl(cvt.GetAppCode())
-	param := impl.ImplParam{
-		Config: *node.ConfManager.Conf,
-		PairId: poolId(info),
-	}
-	iface.Init(param)
-	pair := NewConnectionPair(node.ConfManager.Conf.RTCConf, iface, node.ConfManager.Conf.ID, info.Source)
-	node.AddPair(poolId(info), pair)
-	err := node.GetPair(poolId(info)).Response(info)
+	iface.Init()
+	pair := NewConnectionPair(node.ConfManager.Conf.RTCConf, iface, node.ConfManager.Conf.ID, info.Source, &node.CleanChan)
+	pair.ResetPoolId(info.ID)
+	node.AddPair(pair)
+	err := pair.Response(info)
 	if err != nil {
 		logrus.Error(err)
 		return
 	}
-	node.GetPair(poolId(info)).PeerConnection.OnICECandidate(func(c *webrtc.ICECandidate) {
+	pair.PeerConnection.OnICECandidate(func(c *webrtc.ICECandidate) {
 		logrus.Debug("send candidate")
 		node.SignalCandidate(info, info.Source, c)
 	})
 
-	awser := node.GetPair(poolId(info)).Anwser(info)
+	awser := pair.Anwser(info)
 	if awser == nil {
 		logrus.Error("pair create a nil anwser")
 		return
 	}
-	node.push(*awser)
+	node.push(awser)
 }
 
-func (node *Node) ServePush(info types.SignalingInfo) {
+func (node *Node) ServePush(info *types.SignalingInfo) {
 	buf := bytes.NewBuffer(nil)
 	if err := gob.NewEncoder(buf).Encode(info); err != nil {
 		logrus.Error(err)
@@ -94,13 +94,23 @@ func (node *Node) ServePush(info types.SignalingInfo) {
 	}
 }
 
-func (node *Node) ServeCandidateInfo(info types.SignalingInfo) {
+func (node *Node) ServeCandidateInfo(info *types.SignalingInfo) {
 	logrus.Debug("add candidate")
-	node.GetPair(poolId(info)).AddCandidate(&webrtc.ICECandidateInit{Candidate: string(info.Candidate)}, info.ID)
+	pair := node.GetPair(poolId(info))
+	if pair == nil {
+		logrus.Warn("pair ", poolId(info), "was empty, cannot serve candidate")
+		return
+	}
+	pair.AddCandidate(&webrtc.ICECandidateInit{Candidate: string(info.Candidate)}, info.ID)
 }
 
-func (node *Node) ServeAnwserInfo(info types.SignalingInfo) {
-	err := node.GetPair(poolId(info)).MakeConnection(info)
+func (node *Node) ServeAnwserInfo(info *types.SignalingInfo) {
+	pair := node.GetPair(poolId(info))
+	if pair == nil {
+		logrus.Error("pair for id ", poolId(info), " was empty, cannot serve anwser")
+		return
+	}
+	err := pair.MakeConnection(info)
 	if err != nil {
 		logrus.Error(err)
 	}
@@ -110,7 +120,7 @@ func (node *Node) ServeSignaling() {
 
 	// pull loop
 	go func() {
-		for {
+		for node.running {
 			res, err := http.Get(node.ConfManager.Conf.SignalingServerAddr +
 				path.Join("/", "pull", node.ConfManager.Conf.ID))
 			if err != nil {
@@ -126,11 +136,11 @@ func (node *Node) ServeSignaling() {
 				}
 			}
 			res.Body.Close()
-			node.sigPull <- info
+			node.sigPull <- &info
 		}
 	}()
 
-	for {
+	for node.running {
 		select {
 		case info := <-node.sigPush:
 			go node.ServePush(info)
@@ -149,18 +159,18 @@ func (node *Node) ServeSignaling() {
 	}
 }
 
-func (node *Node) SignalCandidate(info types.SignalingInfo, target string, c *webrtc.ICECandidate) {
+func (node *Node) SignalCandidate(info *types.SignalingInfo, target string, c *webrtc.ICECandidate) {
 	if c == nil {
 		return
 	}
 	if node.cpPool[poolId(info)] == nil {
 		return
 	}
-	cadInfo := types.SignalingInfo{
+	cadInfo := &types.SignalingInfo{
 		Flag:              types.SIG_TYPE_CANDIDATE,
 		Source:            node.ConfManager.Conf.ID,
 		Candidate:         []byte(c.ToJSON().Candidate),
-		ID:                node.cpPool[poolId(info)].Id,
+		ID:                info.ID,
 		RemoteRequestType: info.RemoteRequestType,
 		Target:            target,
 	}

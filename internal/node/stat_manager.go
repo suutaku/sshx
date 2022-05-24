@@ -6,13 +6,36 @@ import (
 )
 
 type StatManager struct {
-	stats map[string]types.Status
+	stats    map[string]types.Status
+	children map[string][]string
+	running  bool
 }
 
 func NewStatManager() *StatManager {
+
 	return &StatManager{
-		stats: make(map[string]types.Status),
+		stats:    make(map[string]types.Status),
+		children: make(map[string][]string),
 	}
+}
+
+func (stm *StatManager) Stop() {
+	stm.running = false
+}
+
+func (stm *StatManager) AddChild(parent, child string) {
+	if stm.children[parent] == nil {
+		stm.children[parent] = make([]string, 0)
+	}
+	stm.children[parent] = append(stm.children[parent], child)
+}
+
+func (stm *StatManager) GetChildren(parent string) []string {
+	return stm.children[parent]
+}
+
+func (stm *StatManager) RemoveParent(parent string) {
+	delete(stm.children, parent)
 }
 
 func (stm *StatManager) Put(stat types.Status) {

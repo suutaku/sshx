@@ -30,6 +30,7 @@ func PipeWR(reader1, reader2 io.Reader, writer1, writer2 io.Writer) {
 }
 
 func Pipe(con1 *net.Conn, con2 *net.Conn) {
+	logrus.Debug("do pipe connection")
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
@@ -87,4 +88,12 @@ func DebugOn() bool {
 		return true
 	}
 	return false
+}
+
+func GetSSHXHome() string {
+	home := os.Getenv("SSHX_HOME")
+	if home == "" {
+		home = "/etc/sshx"
+	}
+	return home
 }

@@ -13,6 +13,7 @@ const (
 	APP_TYPE_SFS
 	APP_TYPE_PROXY
 	APP_TYPE_STAT
+	APP_TYPE_VNC_SERVICE
 )
 
 // some signaling request type

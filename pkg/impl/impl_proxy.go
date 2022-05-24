@@ -1,9 +1,7 @@
 package impl
 
 import (
-	"encoding/gob"
 	"fmt"
-	"io"
 	"net"
 
 	"github.com/sirupsen/logrus"
@@ -11,159 +9,76 @@ import (
 	"github.com/suutaku/sshx/pkg/types"
 )
 
-type ProxyImpl struct {
-	conn           *net.Conn
-	localEntryAddr string
-	localSSHAddr   string
-	hostId         []string
-	pairId         []string
-	proxyPort      int32
-	running        bool
+type Proxy struct {
+	BaseImpl
+	ProxyPort   int32
+	Running     bool
+	ProxyHostId string
 }
 
-func NewProxyImpl() *ProxyImpl {
-	return &ProxyImpl{
-		pairId: make([]string, 0),
-		hostId: make([]string, 0),
+func NewProxy(port int32, host string) *Proxy {
+	return &Proxy{
+		ProxyPort:   port,
+		ProxyHostId: host,
 	}
 }
 
-func (proxy *ProxyImpl) Init(param ImplParam) {
-	proxy.conn = param.Conn
-	proxy.localEntryAddr = fmt.Sprintf("127.0.0.1:%d", param.Config.LocalTCPPort)
-	proxy.localSSHAddr = fmt.Sprintf("127.0.0.1:%d", param.Config.LocalSSHPort)
-	proxy.hostId = append(proxy.hostId, param.HostId)
-	proxy.pairId = append(proxy.pairId, param.PairId)
-}
-
-func (proxy *ProxyImpl) Code() int32 {
+func (p *Proxy) Code() int32 {
 	return types.APP_TYPE_PROXY
 }
 
-func (proxy *ProxyImpl) SetPairId(id string) {
-	proxy.pairId = append(proxy.pairId, id)
-}
-
-func (proxy *ProxyImpl) doDial(inconn *net.Conn) error {
-	conn, err := net.Dial("tcp", proxy.localEntryAddr)
-	if err != nil {
-		return err
-	}
-
-	req := NewCoreRequest(proxy.Code(), types.OPTION_TYPE_UP)
-	req.PairId = []byte(proxy.pairId[len(proxy.pairId)-1])
-	req.Payload = []byte(proxy.hostId[len(proxy.hostId)-1])
-
-	enc := gob.NewEncoder(conn)
-	err = enc.Encode(req)
-	if err != nil {
-		return err
-	}
-	logrus.Debug("waitting TCP Response")
-	resp := CoreResponse{}
-	dec := gob.NewDecoder(conn)
-	err = dec.Decode(&resp)
-	if err != nil {
-		return err
-	}
-	logrus.Debug("TCP Response comming")
-	if resp.Status != 0 {
-		return err
-	}
-	proxy.pairId = append(proxy.pairId, string(resp.PairId))
-	utils.Pipe(inconn, &conn)
-	quitReq := NewCoreRequest(proxy.Code(), types.OPTION_TYPE_DOWN)
-	quitReq.PairId = resp.PairId
-
-	QuitConn, err := net.Dial("tcp", proxy.localEntryAddr)
-	if err != nil {
-		return err
-	}
-	defer QuitConn.Close()
-	gob.NewEncoder(QuitConn).Encode(quitReq)
-	logrus.Debug("doDial quit")
+func (p *Proxy) Preper() error {
 	return nil
 }
 
-func (proxy *ProxyImpl) SetProxyPort(port int32) {
-	proxy.proxyPort = port
-}
-
-func (proxy *ProxyImpl) Dial() error {
-	proxy.running = true
-	listenner, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", proxy.proxyPort))
+func (p *Proxy) Dial() error {
+	p.Running = true
+	listenner, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", p.ProxyPort))
 	if err != nil {
 		return err
 	}
-	fmt.Println("Proxy for ", proxy.hostId, " at :", proxy.proxyPort)
-	for proxy.running {
+	fmt.Println("Proxy for ", p.ProxyHostId, " at :", p.ProxyPort)
+	for p.Running {
 		conn, err := listenner.Accept()
 		if err != nil {
 			continue
 		}
 		// proxy.conn = &conn
-		go proxy.doDial(&conn)
+		go p.doDial(conn)
 
 	}
-	logrus.Debug("Close proxy for ", proxy.hostId)
+	logrus.Debug("Close proxy for ", p.ProxyHostId)
 	return nil
 }
 
-func (proxy *ProxyImpl) Response() error {
-	logrus.Debug("Dail local addr ", proxy.localSSHAddr)
-	conn, err := net.Dial("tcp", proxy.localSSHAddr)
+func (p *Proxy) Response() error {
+	return nil
+}
+
+func (p *Proxy) Close() {
+	p.Running = false
+	logrus.Debug("close proxy impl")
+}
+
+func (p *Proxy) doDial(inconn net.Conn) {
+	imp := &SSH{
+		BaseImpl: BaseImpl{
+			HId: p.ProxyHostId,
+		},
+	}
+	imp.SetParentId(p.PairId())
+	sender := NewSender(imp, types.OPTION_TYPE_UP)
+	conn, err := sender.Send()
 	if err != nil {
-		return err
+		logrus.Error(err)
+		return
 	}
-	logrus.Debug("Dail local addr ", proxy.localSSHAddr, " success")
-	proxy.conn = &conn
-	return nil
-}
-
-func (proxy *ProxyImpl) Close() {
-	if proxy.conn != nil {
-		(*proxy.conn).Close()
-	}
-	proxy.running = false
-	for _, v := range proxy.pairId {
-		quitReq := NewCoreRequest(proxy.Code(), types.OPTION_TYPE_DOWN)
-		quitReq.PairId = []byte(v)
-
-		// new request, beacuase originnal ssh connection was closed
-		QuitConn, err := net.Dial("tcp", proxy.localEntryAddr)
-		if err != nil {
-			return
-		}
-		defer QuitConn.Close()
-		gob.NewEncoder(QuitConn).Encode(quitReq)
-
-	}
-}
-
-func (dal *ProxyImpl) DialerReader() io.Reader {
-	if dal.conn == nil {
-		return nil
-	}
-	return *dal.conn
-}
-
-func (dal *ProxyImpl) DialerWriter() io.Writer {
-	if dal.conn == nil {
-		return nil
-	}
-	return *dal.conn
-}
-
-func (dal *ProxyImpl) ResponserReader() io.Reader {
-	if dal.conn == nil {
-		return nil
-	}
-	return *dal.conn
-}
-
-func (dal *ProxyImpl) ResponserWriter() io.Writer {
-	if dal.conn == nil {
-		return nil
-	}
-	return *dal.conn
+	defer conn.Close()
+	// defer func() {
+	// 	conn.Close()
+	// 	closeSender := NewSender(imp, types.OPTION_TYPE_DOWN)
+	// 	closeSender.PairId = sender.PairId
+	// 	closeSender.SendDetach()
+	// }()
+	utils.Pipe(&inconn, &conn)
 }

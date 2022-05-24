@@ -25,6 +25,7 @@ func main() {
 	app.Command("proxy", "start proxy", cmdProxy)
 	app.Command("status", "get status", cmdStatus)
 	app.Command("fs", "sshfs filesystem", cmdSSHFS)
+	app.Command("vnc", "vnc service", cmdVNCService)
 	app.Run(os.Args)
 
 }

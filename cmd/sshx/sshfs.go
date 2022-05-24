@@ -5,8 +5,8 @@ import (
 
 	cli "github.com/jawher/mow.cli"
 	"github.com/sirupsen/logrus"
-	"github.com/suutaku/sshx/pkg/conf"
 	"github.com/suutaku/sshx/pkg/impl"
+	"github.com/suutaku/sshx/pkg/types"
 )
 
 func cmdSSHFS(cmd *cli.Cmd) {
@@ -15,7 +15,16 @@ func cmdSSHFS(cmd *cli.Cmd) {
 }
 
 func cmdUnmount(cmd *cli.Cmd) {
-
+	cmd.Spec = "PID"
+	pidOpt := cmd.StringArg("PID", "", "vnc server pair Id")
+	cmd.Action = func() {
+		if pidOpt == nil || *pidOpt == "" {
+			return
+		}
+		sender := impl.NewSender(&impl.SSHFS{}, types.OPTION_TYPE_DOWN)
+		sender.PairId = []byte(*pidOpt)
+		sender.SendDetach()
+	}
 }
 
 func splitMountPoint(mtopt string) (root, mt string) {
@@ -37,27 +46,20 @@ func cmdMount(cmd *cli.Cmd) {
 		if host == nil || *(host) == "" {
 			return
 		}
-		cm := conf.NewConfManager(getRootPath())
-		dialer := impl.NewSfsImpl()
-		param := impl.ImplParam{
-			Config: *cm.Conf,
-		}
-		dialer.Init(param)
-		err := dialer.DecodeAddress(*host)
+		root, mtp := splitMountPoint(*mtpOpt)
+		imp := impl.NewSSHFS(mtp, root, *host, *ident)
+		err := imp.Preper()
 		if err != nil {
 			logrus.Error(err)
 			return
 		}
-		root, mtp := splitMountPoint(*mtpOpt)
-		dialer.SetMountPoint(mtp)
-		dialer.SetRoot(root)
-		dialer.PrivateKeyOption(*ident)
 
-		err = dialer.Dial()
+		sender := impl.NewSender(imp, types.OPTION_TYPE_UP)
+		_, err = sender.SendDetach()
 		if err != nil {
-			logrus.Info(err)
+			logrus.Error(err)
 			return
 		}
-
+		logrus.Infof("Mount %s %s to %s\n", imp.HostId(), root, mtp)
 	}
 }

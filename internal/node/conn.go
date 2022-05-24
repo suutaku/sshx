@@ -24,39 +24,55 @@ func (s *Wrapper) Write(b []byte) (int, error) {
 
 type ConnectionPair struct {
 	*webrtc.PeerConnection
-	Id       int64
 	conf     webrtc.Configuration
 	Exit     chan error
 	impl     impl.Impl
 	nodeId   string
 	targetId string
+	stmChan  *chan string
+	poolId   int64
 }
 
-func NewConnectionPair(conf webrtc.Configuration, impl impl.Impl, nodeId string, targetId string) *ConnectionPair {
+func NewConnectionPair(conf webrtc.Configuration, impl impl.Impl, nodeId string, targetId string, stmChan *chan string) *ConnectionPair {
 	pc, err := webrtc.NewPeerConnection(conf)
 	if err != nil {
 		logrus.Error("rtc error:", err)
 		return nil
 	}
-	return &ConnectionPair{
+	ret := &ConnectionPair{
 		PeerConnection: pc,
 		conf:           conf,
 		Exit:           make(chan error, 10),
 		impl:           impl,
 		nodeId:         nodeId,
 		targetId:       targetId,
+		stmChan:        stmChan,
+		poolId:         time.Now().UnixNano(),
 	}
+
+	impl.SetPairId(ret.PoolIdStr())
+	return ret
 }
 
-func (pair *ConnectionPair) SetId(id int64) {
-	pair.Id = id
-	debug := fmt.Sprintf("conn_%d", id)
-	pair.impl.SetPairId(debug)
+func (pair *ConnectionPair) PoolId() int64 {
+	return pair.poolId
+}
+
+func (pair *ConnectionPair) PoolIdStr() string {
+	return fmt.Sprintf("conn_%d", pair.poolId)
+}
+
+func (pair *ConnectionPair) GetImpl() impl.Impl {
+	return pair.impl
+}
+
+func (pair *ConnectionPair) ResetPoolId(id int64) {
+	logrus.Debug("reset pool id from ", pair.poolId, " to ", id)
+	pair.poolId = id
 }
 
 // create responser
-func (pair *ConnectionPair) Response(info types.SignalingInfo) error {
-	pair.Id = info.ID
+func (pair *ConnectionPair) Response(info *types.SignalingInfo) error {
 	logrus.Debug("pair response")
 	peer, err := webrtc.NewPeerConnection(pair.conf)
 	if err != nil {
@@ -77,7 +93,7 @@ func (pair *ConnectionPair) Response(info types.SignalingInfo) error {
 			}
 			pair.Exit <- err
 			logrus.Info("data channel open 2")
-			io.Copy(&Wrapper{dc}, pair.impl.ResponserReader())
+			io.Copy(&Wrapper{dc}, pair.impl.Reader())
 			dc.Close()
 			pair.Close()
 		})
@@ -86,7 +102,7 @@ func (pair *ConnectionPair) Response(info types.SignalingInfo) error {
 				pair.Close()
 				return
 			}
-			_, err := pair.impl.ResponserWriter().Write(msg.Data)
+			_, err := pair.impl.Writer().Write(msg.Data)
 			if err != nil {
 				logrus.Error("sock write failed:", err)
 				pair.Close()
@@ -117,10 +133,11 @@ func (pair *ConnectionPair) Dial() error {
 		pair.Close()
 		return err
 	}
+	go pair.impl.Dial()
 	dc.OnOpen(func() {
 		logrus.Info("data channel open 1")
 		pair.Exit <- nil
-		_, err := io.Copy(&Wrapper{dc}, pair.impl.DialerReader())
+		_, err := io.Copy(&Wrapper{dc}, pair.impl.Reader())
 		if err != nil {
 			logrus.Error(err)
 			pair.Exit <- err
@@ -133,7 +150,7 @@ func (pair *ConnectionPair) Dial() error {
 			pair.Close()
 			return
 		}
-		_, err := pair.impl.DialerWriter().Write(msg.Data)
+		_, err := pair.impl.Writer().Write(msg.Data)
 		if err != nil {
 			logrus.Error("sock write failed:", err)
 			pair.Close()
@@ -149,8 +166,10 @@ func (pair *ConnectionPair) Dial() error {
 	return nil
 }
 func (pair *ConnectionPair) Close() {
+	logrus.Debug("close pair")
 	if pair.PeerConnection != nil {
 		pair.PeerConnection.Close()
+		(*pair.stmChan) <- pair.PoolIdStr()
 	}
 	if pair.impl != nil {
 		pair.impl.Close()
@@ -159,6 +178,9 @@ func (pair *ConnectionPair) Close() {
 
 func (pair *ConnectionPair) Offer(target string, reType int32) *types.SignalingInfo {
 	logrus.Debug("pair offer")
+	if target == "" {
+		return nil
+	}
 	offer, err := pair.PeerConnection.CreateOffer(nil)
 	if err != nil {
 		logrus.Error("offer create offer error:", err)
@@ -171,19 +193,17 @@ func (pair *ConnectionPair) Offer(target string, reType int32) *types.SignalingI
 		return nil
 	}
 	info := types.SignalingInfo{
-		ID:                time.Now().UnixNano(),
+		ID:                pair.PoolId(),
 		Flag:              types.SIG_TYPE_OFFER,
 		Target:            pair.targetId,
 		SDP:               offer.SDP,
 		RemoteRequestType: reType,
 		Source:            pair.nodeId,
 	}
-	pair.SetId(info.ID)
 	return &info
 }
 
-func (pair *ConnectionPair) Anwser(info types.SignalingInfo) *types.SignalingInfo {
-	pair.SetId(info.ID)
+func (pair *ConnectionPair) Anwser(info *types.SignalingInfo) *types.SignalingInfo {
 	logrus.Debug("pair anwser")
 	if err := pair.PeerConnection.SetRemoteDescription(webrtc.SessionDescription{
 		Type: webrtc.SDPTypeOffer,
@@ -215,7 +235,7 @@ func (pair *ConnectionPair) Anwser(info types.SignalingInfo) *types.SignalingInf
 	}
 }
 
-func (pair *ConnectionPair) MakeConnection(info types.SignalingInfo) error {
+func (pair *ConnectionPair) MakeConnection(info *types.SignalingInfo) error {
 	logrus.Debug("pair make connection")
 	if pair == nil || pair.PeerConnection == nil {
 		return fmt.Errorf("invalid peer connection")
@@ -224,7 +244,7 @@ func (pair *ConnectionPair) MakeConnection(info types.SignalingInfo) error {
 		Type: webrtc.SDPTypeAnswer,
 		SDP:  info.SDP,
 	}); err != nil {
-		logrus.Error("make connection rtc error:", err)
+		logrus.Error("make connection rtc error: ", pair.PoolIdStr(), " ", err)
 		pair.Close()
 		return err
 	}
@@ -233,14 +253,14 @@ func (pair *ConnectionPair) MakeConnection(info types.SignalingInfo) error {
 }
 
 func (pair *ConnectionPair) AddCandidate(ca *webrtc.ICECandidateInit, id int64) error {
-	if pair != nil && id == pair.Id {
+	if pair != nil && id == pair.PoolId() {
 		if !pair.IsRemoteDescriptionSet() {
-			logrus.Warn("waiting remote description be set")
+			logrus.Warn("waiting remote description be set ", pair.PoolIdStr())
 			return fmt.Errorf("remote description NOT set")
 		}
 		err := pair.PeerConnection.AddICECandidate(*ca)
 		if err != nil {
-			logrus.Error(err, pair.Id, id)
+			logrus.Error(err, pair.PoolId(), id)
 			return err
 		}
 	} else {
@@ -253,7 +273,7 @@ func (pair *ConnectionPair) IsRemoteDescriptionSet() bool {
 	return !(pair.PeerConnection.RemoteDescription() == nil)
 }
 
-func (pair *ConnectionPair) ResponseTCP(resp impl.CoreResponse) {
+func (pair *ConnectionPair) ResponseTCP(resp impl.Sender) {
 	logrus.Debug("waiting pair signal")
 	err := <-pair.Exit
 	logrus.Debug("Response TCP")
@@ -261,9 +281,7 @@ func (pair *ConnectionPair) ResponseTCP(resp impl.CoreResponse) {
 		logrus.Error(err)
 		resp.Status = -1
 	}
-
-	enc := gob.NewEncoder(pair.impl.DialerWriter())
-	err = enc.Encode(resp)
+	err = gob.NewEncoder(pair.impl.Writer()).Encode(resp)
 	if err != nil {
 		logrus.Error(err)
 		return

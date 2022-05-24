@@ -3,8 +3,8 @@ package main
 import (
 	cli "github.com/jawher/mow.cli"
 	"github.com/sirupsen/logrus"
-	"github.com/suutaku/sshx/pkg/conf"
 	"github.com/suutaku/sshx/pkg/impl"
+	"github.com/suutaku/sshx/pkg/types"
 )
 
 func cmdCopy(cmd *cli.Cmd) {
@@ -19,28 +19,18 @@ func cmdCopy(cmd *cli.Cmd) {
 		if destPath == nil || *destPath == "" {
 			return
 		}
-		cm := conf.NewConfManager(getRootPath())
-		dialer := impl.NewScpImpl()
-
-		// init dialer
-		param := impl.ImplParam{
-			Config: *cm.Conf,
-		}
-		dialer.Init(param)
-
-		err := dialer.ParsePaths(*srcPath, *destPath)
+		imp := impl.NewSCP(*srcPath, *destPath, *ident)
+		err := imp.Preper()
 		if err != nil {
 			logrus.Error(err)
 			return
 		}
-		// parse client option
-		dialer.PrivateKeyOption(*ident)
-		logrus.Debug("cmd connect")
-		err = dialer.Dial()
+		sender := impl.NewSender(imp, types.OPTION_TYPE_UP)
+		_, err = sender.Send()
 		if err != nil {
-			logrus.Info(err)
+			logrus.Error(err)
 			return
 		}
-		dialer.Close()
+
 	}
 }
