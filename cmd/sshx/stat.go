@@ -11,6 +11,8 @@ import (
 )
 
 func cmdStatus(cmd *cli.Cmd) {
+	cmd.Spec = "[ -t ]"
+	treeOpt := cmd.BoolOpt("t", false, "display in tree view")
 	cmd.Action = func() {
 		imp := impl.NewSTAT()
 		err := imp.Preper()
@@ -38,6 +40,10 @@ func cmdStatus(cmd *cli.Cmd) {
 			return
 		}
 		logrus.Debug("show response")
-		imp.ShowStatus(pld)
+		displayStyle := impl.DISPLAY_TABLE
+		if *treeOpt {
+			displayStyle = impl.DISPLAY_TREE
+		}
+		imp.ShowStatus(pld, displayStyle)
 	}
 }
