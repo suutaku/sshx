@@ -49,10 +49,9 @@ func (vnc *VNCService) Preper() error {
 func (vnc *VNCService) serviceIsRuning(port int32) bool {
 	res, err := http.Head(fmt.Sprintf("http://127.0.0.1:%d", port))
 	if err == nil && res.StatusCode == 200 {
+		logrus.Warn("vnc server was already runing")
 		return true
 	}
-
-	logrus.Warn(err, res)
 	return false
 }
 
@@ -65,13 +64,11 @@ func (vnc *VNCService) Dial() error {
 	if vnc.serviceIsRuning(cm.Conf.LocalHTTPPort) {
 		return fmt.Errorf("vnc service was already running")
 	}
-	srv := &http.Server{Addr: fmt.Sprintf(":%d", cm.Conf.LocalHTTPPort)}
 	r := mux.NewRouter()
-	s := http.StripPrefix("/", http.FileServer(http.Dir(cm.Conf.VNCStaticPath)))
-	r.PathPrefix("/").Handler(s)
-	http.Handle("/", r)
-	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-
+	// s := http.StripPrefix("/", http.FileServer(http.Dir(cm.Conf.VNCStaticPath)))
+	r.PathPrefix("/").Handler(http.FileServer(http.Dir(cm.Conf.VNCStaticPath)))
+	// http.Handle("/", r)
+	r.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		deviceId := r.URL.Query()["device"]
 		logrus.Debug(deviceId)
 		conn, err := upgrader.Upgrade(w, r, nil)
@@ -80,7 +77,6 @@ func (vnc *VNCService) Dial() error {
 			return
 		}
 		defer conn.Close()
-
 		imp := NewVNC(deviceId[0])
 		err = imp.Preper()
 		if err != nil {
@@ -99,18 +95,13 @@ func (vnc *VNCService) Dial() error {
 			return
 		}
 		defer conn.Close()
-		// defer func() {
-		// 	conn.Close()
-		// 	closeSender := NewSender(imp, types.OPTION_TYPE_DOWN)
-		// 	closeSender.PairId = sender.PairId
-		// 	closeSender.SendDetach()
-		// }()
 		underConn := conn.UnderlyingConn()
 		utils.PipeWR(inConn, underConn, inConn, underConn)
 		logrus.Debug("end of gorutine")
 
 	})
 	logrus.Info("servce http at port ", cm.Conf.LocalHTTPPort)
+	srv := &http.Server{Addr: fmt.Sprintf(":%d", cm.Conf.LocalHTTPPort), Handler: r}
 	vnc.httpServer = srv
 	vnc.vncServer = vncgo.NewVNC(context.Background(), *vnc.VNCConf)
 	go vnc.vncServer.Start()
