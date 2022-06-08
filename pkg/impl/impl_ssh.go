@@ -224,6 +224,9 @@ func hostKeyString(k ssh.PublicKey) string {
 
 func hostKeyCallback(host string, remote net.Addr, pubKey ssh.PublicKey) error {
 	kh := checkKnownHosts()
+	if kh == nil {
+		return nil
+	}
 	hErr := kh(host, remote, pubKey)
 	// Reference: https://blog.golang.org/go1.13-errors
 	// To understand what errors.As is.
@@ -260,7 +263,7 @@ func addHostKey(host string, remote net.Addr, pubKey ssh.PublicKey) error {
 	defer f.Close()
 
 	knownHosts := knownhosts.Normalize(remote.String())
-	_, fileErr := f.WriteString(knownhosts.Line([]string{knownHosts}, pubKey))
+	_, fileErr := f.WriteString(knownhosts.Line([]string{knownHosts}, pubKey) + "\n")
 	return fileErr
 }
 
