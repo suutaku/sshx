@@ -41,6 +41,7 @@ func (node *Node) Start() {
 	node.running = true
 	go node.ServeSignaling()
 	go node.WatchPairs()
+
 	node.ServeTCP()
 }
 

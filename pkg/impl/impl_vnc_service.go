@@ -8,6 +8,8 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"
+	vncconf "github.com/suutaku/go-vnc/pkg/config"
+	vncgo "github.com/suutaku/go-vnc/pkg/vnc"
 	"github.com/suutaku/sshx/internal/utils"
 	"github.com/suutaku/sshx/pkg/conf"
 	"github.com/suutaku/sshx/pkg/types"
@@ -23,15 +25,16 @@ var upgrader = websocket.Upgrader{
 
 type VNCService struct {
 	BaseImpl
-	VNCPort       int32
 	Running       bool
 	VNCStaticPath string
+	VNCConf       *vncconf.Configure
 	httpServer    *http.Server
+	vncServer     *vncgo.VNC
 }
 
-func NewVNCService(port int32) *VNCService {
+func NewVNCService(conf *vncconf.Configure) *VNCService {
 	return &VNCService{
-		VNCPort: port,
+		VNCConf: conf,
 	}
 }
 
@@ -43,9 +46,25 @@ func (vnc *VNCService) Preper() error {
 	return nil
 }
 
+func (vnc *VNCService) serviceIsRuning(port int32) bool {
+	res, err := http.Head(fmt.Sprintf("http://127.0.0.1:%d", port))
+	if err == nil && res.StatusCode == 200 {
+		return true
+	}
+
+	logrus.Warn(err, res)
+	return false
+}
+
 func (vnc *VNCService) Dial() error {
 	vnc.Running = true
 	cm := conf.NewConfManager("")
+	if vnc.VNCConf == nil {
+		vnc.VNCConf = &cm.Conf.VNCConf
+	}
+	if vnc.serviceIsRuning(cm.Conf.LocalHTTPPort) {
+		return fmt.Errorf("vnc service was already running")
+	}
 	srv := &http.Server{Addr: fmt.Sprintf(":%d", cm.Conf.LocalHTTPPort)}
 	r := mux.NewRouter()
 	s := http.StripPrefix("/", http.FileServer(http.Dir(cm.Conf.VNCStaticPath)))
@@ -93,6 +112,8 @@ func (vnc *VNCService) Dial() error {
 	})
 	logrus.Info("servce http at port ", cm.Conf.LocalHTTPPort)
 	vnc.httpServer = srv
+	vnc.vncServer = vncgo.NewVNC(context.Background(), *vnc.VNCConf)
+	go vnc.vncServer.Start()
 	srv.ListenAndServe()
 	return nil
 }
@@ -102,7 +123,12 @@ func (vnc *VNCService) Response() error {
 }
 
 func (vnc *VNCService) Close() {
+	if vnc.vncServer != nil {
+		logrus.Debug("close vnc server")
+		vnc.vncServer.Close()
+	}
 	if vnc.httpServer != nil {
+		logrus.Debug("close http server")
 		vnc.httpServer.Shutdown(context.TODO())
 	}
 }

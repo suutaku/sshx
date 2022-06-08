@@ -48,9 +48,11 @@ var registeddApp = []Impl{
 }
 
 func GetImpl(code int32) Impl {
+
 	for _, v := range registeddApp {
 		if v.Code() == code {
-			return v
+			s := reflect.TypeOf(v).Elem()
+			return reflect.New(s).Interface().(Impl)
 		}
 	}
 	return nil

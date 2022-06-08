@@ -133,7 +133,15 @@ func (pair *ConnectionPair) Dial() error {
 		pair.Close()
 		return err
 	}
-	go pair.impl.Dial()
+	go func() {
+		err := pair.impl.Dial()
+		if err != nil {
+			logrus.Error(err)
+			pair.Exit <- err
+			dc.Close()
+			pair.Close()
+		}
+	}()
 	dc.OnOpen(func() {
 		logrus.Info("data channel open 1")
 		pair.Exit <- nil

@@ -8,10 +8,8 @@ import (
 )
 
 func cmdStartVNCService(cmd *cli.Cmd) {
-	cmd.Spec = "[-P]"
-	vncServerPort := cmd.IntOpt("P", 80, "local proxy port")
 	cmd.Action = func() {
-		imp := impl.NewVNCService(int32(*vncServerPort))
+		imp := impl.NewVNCService(nil)
 		err := imp.Preper()
 		if err != nil {
 			logrus.Error(err)

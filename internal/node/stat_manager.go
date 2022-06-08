@@ -47,7 +47,7 @@ func (stm *StatManager) Put(stat types.Status) {
 		return
 	}
 	stm.stats[stat.PairId] = stat
-	logrus.Debug("put status")
+	logrus.Debug("put status ", stat.PairId)
 }
 
 func (stm *StatManager) Get() []types.Status {
@@ -61,5 +61,5 @@ func (stm *StatManager) Get() []types.Status {
 
 func (stm *StatManager) Remove(pid string) {
 	delete(stm.stats, pid)
-	logrus.Debug("remove status")
+	logrus.Debug("remove status for ", pid)
 }
