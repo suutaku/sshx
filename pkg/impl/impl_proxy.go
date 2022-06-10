@@ -6,6 +6,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/suutaku/sshx/internal/utils"
+	"github.com/suutaku/sshx/pkg/conf"
 	"github.com/suutaku/sshx/pkg/types"
 )
 
@@ -32,6 +33,7 @@ func (p *Proxy) Preper() error {
 }
 
 func (p *Proxy) Dial() error {
+	conf.ClearKnownHosts(fmt.Sprintf("127.0.0.1:%d", p.ProxyPort))
 	p.Running = true
 	listenner, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", p.ProxyPort))
 	if err != nil {

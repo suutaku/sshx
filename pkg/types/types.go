@@ -4,6 +4,7 @@ const (
 	OPTION_TYPE_UP = iota
 	OPTION_TYPE_DOWN
 	OPTION_TYPE_STAT
+	OPTION_TYPE_ATTACH
 )
 
 const (
@@ -14,6 +15,7 @@ const (
 	APP_TYPE_PROXY
 	APP_TYPE_STAT
 	APP_TYPE_VNC_SERVICE
+	APP_TYPE_MESSAGER
 )
 
 // some signaling request type

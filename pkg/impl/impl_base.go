@@ -27,10 +27,16 @@ func (base *BaseImpl) Init() {
 		go func() {
 			wg.Done()
 			utils.Pipe(base.Conn, &base.PipeClient)
+			base.Close()
+
 		}()
 		wg.Wait()
 	}
 
+}
+
+func (base *BaseImpl) Preper() error {
+	return nil
 }
 
 func (base *BaseImpl) PairId() string {
@@ -68,13 +74,26 @@ func (base *BaseImpl) HostId() string {
 
 func (base *BaseImpl) Close() {
 	if base.PipeServer != nil {
+		logrus.Debug("close PipeServer")
 		base.PipeServer.Close()
 	}
 	if base.PipeClient != nil {
+		logrus.Debug("close PipeClient")
 		base.PipeClient.Close()
 	}
 	if base.Conn != nil {
+		logrus.Debug("close Conn")
 		(*base.Conn).Close()
 	}
 	logrus.Debug("close base impl")
+}
+
+// Response of remote device call
+func (base *BaseImpl) Response() error {
+	return nil
+}
+
+// Call remote device
+func (base *BaseImpl) Dial() error {
+	return nil
 }

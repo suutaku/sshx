@@ -54,6 +54,10 @@ func (node *Node) ServeOfferInfo(info *types.SignalingInfo) {
 		Type: info.RemoteRequestType,
 	}
 	iface := impl.GetImpl(cvt.GetAppCode())
+	if iface == nil {
+		logrus.Warn("unknow impl for IMCODE: ", cvt.GetAppCode())
+		return
+	}
 	iface.Init()
 	pair := NewConnectionPair(node.ConfManager.Conf.RTCConf, iface, node.ConfManager.Conf.ID, info.Source, &node.CleanChan)
 	pair.ResetPoolId(info.ID)

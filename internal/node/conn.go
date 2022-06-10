@@ -94,6 +94,7 @@ func (pair *ConnectionPair) Response(info *types.SignalingInfo) error {
 			pair.Exit <- err
 			logrus.Info("data channel open 2")
 			io.Copy(&Wrapper{dc}, pair.impl.Reader())
+			pair.Exit <- fmt.Errorf("io copy break")
 			dc.Close()
 			pair.Close()
 		})
@@ -145,13 +146,12 @@ func (pair *ConnectionPair) Dial() error {
 	dc.OnOpen(func() {
 		logrus.Info("data channel open 1")
 		pair.Exit <- nil
-		_, err := io.Copy(&Wrapper{dc}, pair.impl.Reader())
-		if err != nil {
-			logrus.Error(err)
-			pair.Exit <- err
-			dc.Close()
-			pair.Close()
-		}
+		// hangs
+		io.Copy(&Wrapper{dc}, pair.impl.Reader())
+		pair.Exit <- fmt.Errorf("io copy break 1")
+		dc.Close()
+		pair.Close()
+		logrus.Info("data channel close 1")
 	})
 	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 		if pair.impl == nil {

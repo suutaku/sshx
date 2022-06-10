@@ -45,6 +45,7 @@ var registeddApp = []Impl{
 	&VNCService{},
 	&VNC{},
 	&STAT{},
+	&Messager{},
 }
 
 func GetImpl(code int32) Impl {
