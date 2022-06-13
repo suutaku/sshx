@@ -26,10 +26,6 @@ func (stat *STAT) Code() int32 {
 	return types.APP_TYPE_STAT
 }
 
-func (stat *STAT) Preper() error {
-	return nil
-}
-
 func (stat *STAT) Dial() error {
 	return nil
 }

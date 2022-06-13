@@ -28,10 +28,6 @@ func (p *Proxy) Code() int32 {
 	return types.APP_TYPE_PROXY
 }
 
-func (p *Proxy) Preper() error {
-	return nil
-}
-
 func (p *Proxy) Dial() error {
 	conf.ClearKnownHosts(fmt.Sprintf("127.0.0.1:%d", p.ProxyPort))
 	p.Running = true

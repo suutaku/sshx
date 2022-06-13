@@ -46,7 +46,7 @@ func (m *Messager) Response() error {
 	m.isRuning = true
 	go func() {
 		c, s := net.Pipe()
-		m.PipeServer = s
+		m.Conn = &s
 		dec := gob.NewDecoder(c)
 		for m.isRuning {
 			var msg Message

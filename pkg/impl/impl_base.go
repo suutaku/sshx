@@ -3,36 +3,15 @@ package impl
 import (
 	"io"
 	"net"
-	"sync"
 
 	"github.com/sirupsen/logrus"
-	"github.com/suutaku/sshx/internal/utils"
 )
 
 type BaseImpl struct {
-	PipeClient net.Conn
-	PipeServer net.Conn
-	HId        string
-	Conn       *net.Conn
-	Parent     string
-	PId        string
-}
-
-func (base *BaseImpl) Init() {
-	base.PipeClient, base.PipeServer = net.Pipe()
-	if base.Conn != nil {
-		logrus.Debug("pipe connection")
-		wg := sync.WaitGroup{}
-		wg.Add(1)
-		go func() {
-			wg.Done()
-			utils.Pipe(base.Conn, &base.PipeClient)
-			base.Close()
-
-		}()
-		wg.Wait()
-	}
-
+	HId    string
+	Conn   *net.Conn
+	Parent string
+	PId    string
 }
 
 func (base *BaseImpl) Preper() error {
@@ -61,11 +40,15 @@ func (base *BaseImpl) SetConn(conn net.Conn) {
 }
 
 func (base *BaseImpl) Reader() io.Reader {
-	return base.PipeServer
+	return *(base.Conn)
 }
 
 func (base *BaseImpl) Writer() io.Writer {
-	return base.PipeServer
+	return (*base.Conn)
+}
+
+func (base *BaseImpl) ReadWriteCloser() io.ReadWriteCloser {
+	return (*base.Conn)
 }
 
 func (base *BaseImpl) HostId() string {
@@ -73,14 +56,6 @@ func (base *BaseImpl) HostId() string {
 }
 
 func (base *BaseImpl) Close() {
-	if base.PipeServer != nil {
-		logrus.Debug("close PipeServer")
-		base.PipeServer.Close()
-	}
-	if base.PipeClient != nil {
-		logrus.Debug("close PipeClient")
-		base.PipeClient.Close()
-	}
 	if base.Conn != nil {
 		logrus.Debug("close Conn")
 		(*base.Conn).Close()

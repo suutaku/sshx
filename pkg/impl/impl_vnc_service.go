@@ -42,10 +42,6 @@ func (vnc *VNCService) Code() int32 {
 	return types.APP_TYPE_VNC_SERVICE
 }
 
-func (vnc *VNCService) Preper() error {
-	return nil
-}
-
 func (vnc *VNCService) serviceIsRuning(port int32) bool {
 	res, err := http.Head(fmt.Sprintf("http://127.0.0.1:%d", port))
 	if err == nil && res.StatusCode == 200 {

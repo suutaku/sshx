@@ -41,7 +41,6 @@ func (node *Node) ServeTCP() {
 			if !tmp.Detach {
 				iface.SetConn(sock)
 			}
-			iface.Init()
 			logrus.Debug("up option")
 			pair := NewConnectionPair(node.ConfManager.Conf.RTCConf, iface, node.ConfManager.Conf.ID, iface.HostId(), &node.CleanChan)
 			pair.Dial()

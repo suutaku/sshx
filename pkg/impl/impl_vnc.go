@@ -25,10 +25,6 @@ func (vnc *VNC) Code() int32 {
 	return types.APP_TYPE_VNC
 }
 
-func (vnc *VNC) Preper() error {
-	return nil
-}
-
 func (vnc *VNC) Dial() error {
 	return nil
 }
@@ -41,6 +37,7 @@ func (vnc *VNC) Response() error {
 	if err != nil {
 		return err
 	}
-	vnc.PipeServer = vncConn.UnderlyingConn()
+	tmp := vncConn.UnderlyingConn()
+	vnc.Conn = &tmp
 	return nil
 }

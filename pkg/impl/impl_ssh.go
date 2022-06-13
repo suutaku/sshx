@@ -72,7 +72,7 @@ func (s *SSH) Response() error {
 	if err != nil {
 		return err
 	}
-	s.PipeServer = conn
+	s.Conn = &conn
 	return nil
 }
 
