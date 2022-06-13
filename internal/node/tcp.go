@@ -77,6 +77,21 @@ func (node *Node) ServeTCP() {
 			if err != nil {
 				logrus.Error(err)
 			}
+		case types.OPTION_TYPE_ATTACH:
+			logrus.Debug("attach option")
+			pair := node.GetPair(string(tmp.PairId))
+			if pair == nil {
+				logrus.Error("cannot attach impl with id: ", string(tmp.PairId))
+				continue
+			}
+			// should assign host id and return
+			retSender := impl.NewSender(pair.impl, types.OPTION_TYPE_ATTACH)
+			err = gob.NewEncoder(sock).Encode(retSender)
+			if err != nil {
+				logrus.Error(err)
+				continue
+			}
+			pair.impl.Attach(sock)
 		}
 
 	}

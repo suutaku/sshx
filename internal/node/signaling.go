@@ -58,6 +58,7 @@ func (node *Node) ServeOfferInfo(info *types.SignalingInfo) {
 		logrus.Warn("unknow impl for IMCODE: ", cvt.GetAppCode())
 		return
 	}
+	iface.SetHostId(info.Source)
 	pair := NewConnectionPair(node.ConfManager.Conf.RTCConf, iface, node.ConfManager.Conf.ID, info.Source, &node.CleanChan)
 	pair.ResetPoolId(info.ID)
 	node.AddPair(pair)

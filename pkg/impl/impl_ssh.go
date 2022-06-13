@@ -72,7 +72,7 @@ func (s *SSH) Response() error {
 	if err != nil {
 		return err
 	}
-	s.Conn = &conn
+	s.BaseImpl.SetConn(conn)
 	return nil
 }
 

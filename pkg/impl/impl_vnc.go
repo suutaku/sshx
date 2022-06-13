@@ -37,7 +37,6 @@ func (vnc *VNC) Response() error {
 	if err != nil {
 		return err
 	}
-	tmp := vncConn.UnderlyingConn()
-	vnc.Conn = &tmp
+	vnc.BaseImpl.SetConn(vncConn.UnderlyingConn())
 	return nil
 }

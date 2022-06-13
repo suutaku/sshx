@@ -28,12 +28,14 @@ type Impl interface {
 	Preper() error
 	// Close Impl connection
 	Close()
+	SetHostId(id string)
 	// Get Host Id
 	HostId() string
 	PairId() string
 	SetPairId(string)
 	ParentId() string
 	SetParentId(string)
+	Attach(net.Conn) error
 }
 
 var registeddApp = []Impl{
