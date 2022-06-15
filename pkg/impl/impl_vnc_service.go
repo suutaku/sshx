@@ -90,7 +90,7 @@ func (vnc *VNCService) Dial() error {
 		}
 		defer conn.Close()
 		underConn := conn.UnderlyingConn()
-		utils.PipeWR(inConn, underConn, inConn, underConn)
+		utils.Pipe(&inConn, &underConn)
 		logrus.Debug("end of gorutine")
 
 	})

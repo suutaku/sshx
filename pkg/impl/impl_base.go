@@ -14,6 +14,10 @@ type BaseImpl struct {
 	PId    string
 }
 
+func NewBaseImpl() *BaseImpl {
+	return &BaseImpl{}
+}
+
 func (base *BaseImpl) Preper() error {
 	return nil
 }
