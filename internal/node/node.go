@@ -13,8 +13,10 @@ type Node struct {
 
 func NewNode(home string) *Node {
 	cm := conf.NewConfManager(home)
-	enabledService := make([]conn.ConnectionService, 0)
-	enabledService = append(enabledService, conn.NewWebRTCService(cm.Conf.ID, cm.Conf.SignalingServerAddr, cm.Conf.RTCConf))
+	enabledService := []conn.ConnectionService{
+		// conn.NewWebRTCService(cm.Conf.ID, cm.Conf.SignalingServerAddr, cm.Conf.RTCConf),
+		conn.NewDirectService(cm.Conf.ID),
+	}
 	return &Node{
 		confManager: cm,
 		connMgr:     conn.NewConnectionManager(enabledService),

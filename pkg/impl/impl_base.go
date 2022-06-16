@@ -18,6 +18,10 @@ func NewBaseImpl() *BaseImpl {
 	return &BaseImpl{}
 }
 
+func (base *BaseImpl) Conn() net.Conn {
+	return *base.conn
+}
+
 func (base *BaseImpl) Preper() error {
 	return nil
 }

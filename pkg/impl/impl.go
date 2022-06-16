@@ -16,6 +16,7 @@ type Impl interface {
 	Code() int32
 	// Set connection for non-detach process
 	SetConn(net.Conn)
+	Conn() net.Conn
 	// Writer
 	Writer() io.Writer
 	// Reader of dialer

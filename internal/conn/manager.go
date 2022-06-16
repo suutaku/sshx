@@ -47,7 +47,11 @@ func (cm *ConnectionManager) Stop() {
 func (cm *ConnectionManager) CreateConnection(sender impl.Sender, sock net.Conn) error {
 	for i := 0; i < len(cm.css); i++ {
 		if cm.css[i].IsReady() {
-			return cm.css[i].CreateConnection(sender, sock)
+			err := cm.css[i].CreateConnection(sender, sock)
+			if err == nil {
+				return err
+			}
+			logrus.Error(err)
 		}
 	}
 	return fmt.Errorf("all connection service was not ready")

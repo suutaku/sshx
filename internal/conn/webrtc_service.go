@@ -16,51 +16,29 @@ import (
 )
 
 type WebRTCService struct {
+	BaseConnectionService
 	sigPull             chan *types.SignalingInfo
 	sigPush             chan *types.SignalingInfo
-	CleanChan           chan string
 	conf                webrtc.Configuration
-	id                  string
 	signalingServerAddr string
-	cpPool              map[string]*WebRTC
-	running             bool
-	stm                 *StatManager
-	isReady             bool
 }
 
 func NewWebRTCService(id, signalingServerAddr string, conf webrtc.Configuration) *WebRTCService {
 	return &WebRTCService{
-		sigPull:             make(chan *types.SignalingInfo, 128),
-		sigPush:             make(chan *types.SignalingInfo, 128),
-		CleanChan:           make(chan string, 10),
-		conf:                conf,
-		id:                  id,
-		signalingServerAddr: signalingServerAddr,
-		cpPool:              make(map[string]*WebRTC),
+		sigPull:               make(chan *types.SignalingInfo, 128),
+		sigPush:               make(chan *types.SignalingInfo, 128),
+		conf:                  conf,
+		signalingServerAddr:   signalingServerAddr,
+		BaseConnectionService: *NewBaseConnectionService(id),
 	}
-}
-
-func (wss *WebRTCService) SetStateManager(stm *StatManager) error {
-	wss.stm = stm
-	return nil
 }
 
 func (wss *WebRTCService) Start() error {
 	logrus.Debug("start webrtc service")
-	wss.running = true
-	wss.isReady = true
+	wss.BaseConnectionService.Start()
 	go wss.ServeSignaling()
-	go wss.WatchPairs()
+
 	return nil
-}
-
-func (wss *WebRTCService) Stop() {
-	wss.running = false
-	wss.isReady = false
-}
-
-func (wss *WebRTCService) IsReady() bool {
-	return wss.isReady
 }
 
 func (wss *WebRTCService) CreateConnection(sender impl.Sender, sock net.Conn) error {
@@ -72,7 +50,7 @@ func (wss *WebRTCService) CreateConnection(sender impl.Sender, sock net.Conn) er
 	if !sender.Detach {
 		iface.SetConn(sock)
 	}
-	pair := NewConnectionPair(wss.conf, iface, wss.id, iface.HostId(), &wss.CleanChan)
+	pair := NewWebRTC(wss.conf, iface, wss.id, iface.HostId(), &wss.CleanChan)
 	pair.Dial()
 	info := pair.Offer(string(iface.HostId()), sender.Type)
 	wss.AddPair(pair)
@@ -90,33 +68,6 @@ func (wss *WebRTCService) CreateConnection(sender impl.Sender, sock net.Conn) er
 		sender.PairId = []byte(wss.poolId(info))
 		go pair.ResponseTCP(sender)
 	}
-	return nil
-}
-
-func (wss *WebRTCService) DestroyConnection(tmp impl.Sender) error {
-	pair := wss.GetPair(string(tmp.PairId))
-	if pair == nil {
-		return fmt.Errorf("cannot get pair for %s", string(tmp.PairId))
-	}
-	if pair.GetImpl().Code() == tmp.GetAppCode() {
-		wss.RemovePair(string(tmp.PairId))
-	}
-	return nil
-}
-
-func (wss *WebRTCService) AttachConnection(sender impl.Sender, sock net.Conn) error {
-	pair := wss.GetPair(string(sender.PairId))
-	if pair == nil {
-		return fmt.Errorf("cannot attach impl with id: %s", string(sender.PairId))
-
-	}
-	// should assign host id and return
-	retSender := impl.NewSender(pair.impl, types.OPTION_TYPE_ATTACH)
-	err := gob.NewEncoder(sock).Encode(retSender)
-	if err != nil {
-		return err
-	}
-	pair.impl.Attach(sock)
 	return nil
 }
 
@@ -157,6 +108,9 @@ func (wss *WebRTCService) push(info *types.SignalingInfo) error {
 }
 
 func (wss *WebRTCService) ServeOfferInfo(info *types.SignalingInfo) {
+	if info == nil {
+		return
+	}
 	cvt := impl.Sender{
 		Type: info.RemoteRequestType,
 	}
@@ -166,10 +120,10 @@ func (wss *WebRTCService) ServeOfferInfo(info *types.SignalingInfo) {
 		return
 	}
 	iface.SetHostId(info.Source)
-	pair := NewConnectionPair(wss.conf, iface, wss.id, info.Source, &wss.CleanChan)
+	pair := NewWebRTC(wss.conf, iface, wss.id, info.Source, &wss.CleanChan)
 	pair.ResetPoolId(info.ID)
 	wss.AddPair(pair)
-	err := pair.Response(info)
+	err := pair.Response()
 	if err != nil {
 		logrus.Error(err)
 		return
@@ -207,7 +161,7 @@ func (wss *WebRTCService) ServePush(info *types.SignalingInfo) {
 
 func (wss *WebRTCService) ServeCandidateInfo(info *types.SignalingInfo) {
 	logrus.Debug("add candidate")
-	pair := wss.GetPair(wss.poolId(info))
+	pair := wss.GetPair(wss.poolId(info)).(*WebRTC)
 	if pair == nil {
 		logrus.Warn("pair ", wss.poolId(info), " was empty, cannot serve candidate")
 		return
@@ -216,7 +170,7 @@ func (wss *WebRTCService) ServeCandidateInfo(info *types.SignalingInfo) {
 }
 
 func (wss *WebRTCService) ServeAnwserInfo(info *types.SignalingInfo) {
-	pair := wss.GetPair(wss.poolId(info))
+	pair := wss.GetPair(wss.poolId(info)).(*WebRTC)
 	if pair == nil {
 		logrus.Error("pair for id ", wss.poolId(info), " was empty, cannot serve anwser")
 		return
@@ -286,60 +240,4 @@ func (wss *WebRTCService) SignalCandidate(info *types.SignalingInfo, target stri
 		Target:            target,
 	}
 	wss.push(cadInfo)
-}
-
-func (wss *WebRTCService) RemovePair(id string) {
-	children := wss.stm.GetChildren(id)
-	logrus.Debug("ready to clear children ", children)
-	// close children
-	for _, v := range children {
-		if wss.cpPool[v] != nil {
-			wss.cpPool[v].Close()
-			delete(wss.cpPool, v)
-		}
-		wss.stm.Remove(id)
-	}
-	// close parent
-	if wss.cpPool[id] != nil {
-		wss.cpPool[id].Close()
-		delete(wss.cpPool, id)
-	}
-	wss.stm.Remove(id)
-	wss.stm.RemoveParent(id)
-}
-func (wss *WebRTCService) AddPair(pair *WebRTC) {
-	// if node.cpPool[id] != nil {
-	// 	logrus.Warn("recover connection pair ", id)
-	// 	node.RemovePair(id)
-	// }
-	if pair == nil {
-		return
-	}
-	wss.cpPool[pair.PoolIdStr()] = pair
-	stat := types.Status{
-		PairId:    pair.PoolIdStr(),
-		TargetId:  pair.targetId,
-		ImplType:  pair.impl.Code(),
-		StartTime: time.Now(),
-	}
-
-	if pair.impl.ParentId() != "" {
-		logrus.Debug("add child ", pair.PoolIdStr(), " to ", pair.impl.ParentId())
-		stat.ParentPairId = pair.impl.ParentId()
-		wss.stm.AddChild(pair.impl.ParentId(), pair.PoolIdStr())
-	}
-	wss.stm.Put(stat)
-
-}
-
-func (wss *WebRTCService) GetPair(id string) *WebRTC {
-	return wss.cpPool[id]
-}
-
-func (wss *WebRTCService) WatchPairs() {
-	for wss.running {
-		pairId := <-wss.CleanChan
-		wss.RemovePair(pairId)
-		logrus.Debug("clean request from clean channel ", pairId)
-	}
 }

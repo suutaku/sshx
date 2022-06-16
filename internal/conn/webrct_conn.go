@@ -1,10 +1,8 @@
 package conn
 
 import (
-	"encoding/gob"
 	"fmt"
 	"io"
-	"time"
 
 	"github.com/suutaku/sshx/pkg/impl"
 	"github.com/suutaku/sshx/pkg/types"
@@ -23,17 +21,13 @@ func (s *Wrapper) Write(b []byte) (int, error) {
 }
 
 type WebRTC struct {
+	BaseConnection
 	*webrtc.PeerConnection
-	conf     webrtc.Configuration
-	Exit     chan error
-	impl     impl.Impl
-	nodeId   string
-	targetId string
-	stmChan  *chan string
-	poolId   int64
+	conf    webrtc.Configuration
+	stmChan *chan string
 }
 
-func NewConnectionPair(conf webrtc.Configuration, impl impl.Impl, nodeId string, targetId string, stmChan *chan string) *WebRTC {
+func NewWebRTC(conf webrtc.Configuration, impl impl.Impl, nodeId string, targetId string, stmChan *chan string) *WebRTC {
 	pc, err := webrtc.NewPeerConnection(conf)
 	if err != nil {
 		logrus.Error("rtc error:", err)
@@ -42,37 +36,16 @@ func NewConnectionPair(conf webrtc.Configuration, impl impl.Impl, nodeId string,
 	ret := &WebRTC{
 		PeerConnection: pc,
 		conf:           conf,
-		Exit:           make(chan error, 10),
-		impl:           impl,
-		nodeId:         nodeId,
-		targetId:       targetId,
+		BaseConnection: *NewBaseConnection(impl, nodeId, targetId),
 		stmChan:        stmChan,
-		poolId:         time.Now().UnixNano(),
 	}
 
 	impl.SetPairId(ret.PoolIdStr())
 	return ret
 }
 
-func (pair *WebRTC) PoolId() int64 {
-	return pair.poolId
-}
-
-func (pair *WebRTC) PoolIdStr() string {
-	return fmt.Sprintf("conn_%d", pair.poolId)
-}
-
-func (pair *WebRTC) GetImpl() impl.Impl {
-	return pair.impl
-}
-
-func (pair *WebRTC) ResetPoolId(id int64) {
-	logrus.Debug("reset pool id from ", pair.poolId, " to ", id)
-	pair.poolId = id
-}
-
 // create responser
-func (pair *WebRTC) Response(info *types.SignalingInfo) error {
+func (pair *WebRTC) Response() error {
 	logrus.Debug("pair response")
 	peer, err := webrtc.NewPeerConnection(pair.conf)
 	if err != nil {
@@ -279,19 +252,4 @@ func (pair *WebRTC) AddCandidate(ca *webrtc.ICECandidateInit, id int64) error {
 
 func (pair *WebRTC) IsRemoteDescriptionSet() bool {
 	return !(pair.PeerConnection.RemoteDescription() == nil)
-}
-
-func (pair *WebRTC) ResponseTCP(resp impl.Sender) {
-	logrus.Debug("waiting pair signal")
-	err := <-pair.Exit
-	logrus.Debug("Response TCP")
-	if err != nil {
-		logrus.Error(err)
-		resp.Status = -1
-	}
-	err = gob.NewEncoder(pair.impl.Writer()).Encode(resp)
-	if err != nil {
-		logrus.Error(err)
-		return
-	}
 }

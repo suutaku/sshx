@@ -16,6 +16,7 @@ func (node *Node) ServeTCP() {
 		logrus.Error(err)
 		panic(err)
 	}
+	defer listenner.Close()
 	for node.running {
 		sock, err := listenner.Accept()
 		if err != nil {
