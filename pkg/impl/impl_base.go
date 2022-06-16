@@ -18,6 +18,8 @@ func NewBaseImpl() *BaseImpl {
 	return &BaseImpl{}
 }
 
+func (base *BaseImpl) Init() {}
+
 func (base *BaseImpl) Conn() net.Conn {
 	return *base.conn
 }

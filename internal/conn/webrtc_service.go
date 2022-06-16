@@ -55,7 +55,10 @@ func (wss *WebRTCService) CreateConnection(sender impl.Sender, sock net.Conn, po
 		iface.SetConn(sock)
 	}
 	pair := NewWebRTC(wss.conf, iface, wss.id, iface.HostId(), poolId, &wss.CleanChan)
-	pair.Dial()
+	err = pair.Dial()
+	if err != nil {
+		return err
+	}
 	info := pair.Offer(string(iface.HostId()), sender.Type)
 	err = wss.AddPair(pair)
 	if err != nil {
@@ -168,12 +171,12 @@ func (wss *WebRTCService) ServePush(info *types.SignalingInfo) {
 
 func (wss *WebRTCService) ServeCandidateInfo(info *types.SignalingInfo) {
 	logrus.Debug("add candidate")
-	pair := wss.GetPair(wss.poolId(info)).(*WebRTC)
+	pair := wss.GetPair(wss.poolId(info))
 	if pair == nil {
 		logrus.Warn("pair ", wss.poolId(info), " was empty, cannot serve candidate")
 		return
 	}
-	pair.AddCandidate(&webrtc.ICECandidateInit{Candidate: string(info.Candidate)}, info.ID)
+	pair.(*WebRTC).AddCandidate(&webrtc.ICECandidateInit{Candidate: string(info.Candidate)}, info.ID)
 }
 
 func (wss *WebRTCService) ServeAnwserInfo(info *types.SignalingInfo) {

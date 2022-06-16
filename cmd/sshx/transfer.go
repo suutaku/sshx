@@ -8,16 +8,13 @@ import (
 )
 
 func cmdUpload(cmd *cli.Cmd) {
-	cmd.Spec = "TARGETID FILEPATH"
-	hostId := cmd.StringArg("TARGETID", "", "target device id")
-	filePath := cmd.StringArg("FILEPATH", "", "path of file to upload")
+	cmd.Spec = "[-t] [-f]"
+	hostId := cmd.StringOpt("t target", "", "target device id")
+	filePath := cmd.StringOpt("f file", "", "path of file to upload")
 	cmd.Action = func() {
 
 		if hostId == nil || *hostId == "" {
-
-		}
-		if filePath == nil || *filePath == "" {
-			logrus.Error("please set a file path")
+			*hostId = "127.0.0.1"
 		}
 
 		imp := impl.NewTransfer(*hostId, *filePath, true)
@@ -33,7 +30,10 @@ func cmdUpload(cmd *cli.Cmd) {
 			return
 		}
 		imp.SetConn(conn)
-		imp.ShowQR()
+		err = imp.Wait()
+		if err != nil {
+			logrus.Error(err)
+		}
 		imp.Close()
 	}
 

@@ -12,6 +12,7 @@ const timeout = 30 * time.Second
 
 // Impl represents an application implementation
 type Impl interface {
+	Init()
 	// Return impl code
 	Code() int32
 	// Set connection for non-detach process

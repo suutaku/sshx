@@ -29,6 +29,7 @@ type BaseConnection struct {
 }
 
 func NewBaseConnection(impl impl.Impl, nodeId, targetId string, poolId int64) *BaseConnection {
+	impl.Init()
 	ret := &BaseConnection{
 		Exit:     make(chan error, 10),
 		nodeId:   nodeId,

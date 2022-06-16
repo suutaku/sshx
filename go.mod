@@ -21,6 +21,7 @@ require (
 	github.com/pkg/sftp v1.13.4
 	github.com/povsister/scp v0.0.0-20210427074412-33febfd9f13e
 	github.com/power-devops/perfstat v0.0.0-20220216144756-c35f1ee13d7c // indirect
+	github.com/schollz/progressbar/v3 v3.8.6
 	github.com/shirou/gopsutil/v3 v3.22.3 // indirect
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/viper v1.11.0
