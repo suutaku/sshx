@@ -41,7 +41,11 @@ func (wss *WebRTCService) Start() error {
 	return nil
 }
 
-func (wss *WebRTCService) CreateConnection(sender impl.Sender, sock net.Conn) error {
+func (wss *WebRTCService) CreateConnection(sender impl.Sender, sock net.Conn, poolId int64) error {
+	err := wss.BaseConnectionService.CreateConnection(sender, sock, poolId)
+	if err != nil {
+		return err
+	}
 	iface := sender.GetImpl()
 	if iface == nil {
 		return fmt.Errorf("unknown impl")
@@ -50,12 +54,15 @@ func (wss *WebRTCService) CreateConnection(sender impl.Sender, sock net.Conn) er
 	if !sender.Detach {
 		iface.SetConn(sock)
 	}
-	pair := NewWebRTC(wss.conf, iface, wss.id, iface.HostId(), &wss.CleanChan)
+	pair := NewWebRTC(wss.conf, iface, wss.id, iface.HostId(), poolId, &wss.CleanChan)
 	pair.Dial()
 	info := pair.Offer(string(iface.HostId()), sender.Type)
-	wss.AddPair(pair)
+	err = wss.AddPair(pair)
+	if err != nil {
+		return err
+	}
 
-	err := wss.push(info)
+	err = wss.push(info)
 	if err != nil {
 		sock.Close()
 		return err
@@ -92,7 +99,7 @@ func (wss *WebRTCService) poolId(info *types.SignalingInfo) string {
 	if info.ID == 0 {
 		panic("info id was empty")
 	}
-	return fmt.Sprintf("conn_%d", info.ID)
+	return PoolIdFromInt(info.ID)
 }
 
 func (wss *WebRTCService) push(info *types.SignalingInfo) error {
@@ -120,7 +127,7 @@ func (wss *WebRTCService) ServeOfferInfo(info *types.SignalingInfo) {
 		return
 	}
 	iface.SetHostId(info.Source)
-	pair := NewWebRTC(wss.conf, iface, wss.id, info.Source, &wss.CleanChan)
+	pair := NewWebRTC(wss.conf, iface, wss.id, info.Source, 0, &wss.CleanChan)
 	pair.ResetPoolId(info.ID)
 	wss.AddPair(pair)
 	err := pair.Response()
@@ -228,7 +235,7 @@ func (wss *WebRTCService) SignalCandidate(info *types.SignalingInfo, target stri
 	if c == nil {
 		return
 	}
-	if wss.cpPool[wss.poolId(info)] == nil {
+	if wss.GetPair(wss.poolId(info)) == nil {
 		return
 	}
 	cadInfo := &types.SignalingInfo{

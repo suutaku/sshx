@@ -4,7 +4,6 @@ import (
 	"encoding/gob"
 	"fmt"
 	"net"
-	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/suutaku/sshx/pkg/impl"
@@ -15,7 +14,7 @@ import (
 type ConnectionService interface {
 	Start() error
 	SetStateManager(*StatManager) error
-	CreateConnection(impl.Sender, net.Conn) error
+	CreateConnection(impl.Sender, net.Conn, int64) error
 	DestroyConnection(impl.Sender) error
 	AttachConnection(impl.Sender, net.Conn) error
 	IsReady() bool
@@ -29,7 +28,6 @@ type BaseConnectionService struct {
 	stm       *StatManager
 	isReady   bool
 	running   bool
-	cpPool    map[string]Connection
 	CleanChan chan string
 	id        string
 }
@@ -37,7 +35,6 @@ type BaseConnectionService struct {
 func NewBaseConnectionService(id string) *BaseConnectionService {
 	return &BaseConnectionService{
 		CleanChan: make(chan string, 10),
-		cpPool:    make(map[string]Connection),
 		id:        id,
 	}
 }
@@ -47,51 +44,14 @@ func (base *BaseConnectionService) Id() string {
 }
 
 func (base *BaseConnectionService) RemovePair(id string) {
-	children := base.stm.GetChildren(id)
-	logrus.Debug("ready to clear children ", children)
-	// close children
-	for _, v := range children {
-		if base.cpPool[v] != nil {
-			base.cpPool[v].Close()
-			delete(base.cpPool, v)
-		}
-		base.stm.Remove(id)
-	}
-	// close parent
-	if base.cpPool[id] != nil {
-		base.cpPool[id].Close()
-		delete(base.cpPool, id)
-	}
-	base.stm.Remove(id)
-	base.stm.RemoveParent(id)
+	base.stm.RemovePair(id)
 }
-func (base *BaseConnectionService) AddPair(pair Connection) {
-	// if node.cpPool[id] != nil {
-	// 	logrus.Warn("recover connection pair ", id)
-	// 	node.RemovePair(id)
-	// }
-	if pair == nil {
-		return
-	}
-	base.cpPool[pair.PoolIdStr()] = pair
-	stat := types.Status{
-		PairId:    pair.PoolIdStr(),
-		TargetId:  pair.TargetId(),
-		ImplType:  pair.GetImpl().Code(),
-		StartTime: time.Now(),
-	}
-
-	if pair.GetImpl().ParentId() != "" {
-		logrus.Debug("add child ", pair.PoolIdStr(), " to ", pair.GetImpl().ParentId())
-		stat.ParentPairId = pair.GetImpl().ParentId()
-		base.stm.AddChild(pair.GetImpl().ParentId(), pair.PoolIdStr())
-	}
-	base.stm.Put(stat)
-
+func (base *BaseConnectionService) AddPair(pair Connection) error {
+	return base.stm.AddPair(pair)
 }
 
 func (base *BaseConnectionService) GetPair(id string) Connection {
-	return base.cpPool[id]
+	return base.stm.GetPair(id)
 }
 
 func (base *BaseConnectionService) WatchPairs() {
@@ -114,8 +74,10 @@ func (base *BaseConnectionService) SetStateManager(stm *StatManager) error {
 	return nil
 }
 
-func (base *BaseConnectionService) CreateConnection(impl.Sender, net.Conn) error {
-	logrus.Warn("CreateConnection not implemeted")
+func (base *BaseConnectionService) CreateConnection(sender impl.Sender, conn net.Conn, poolId int64) error {
+	if base.GetPair(PoolIdFromInt(poolId)) != nil {
+		return fmt.Errorf("connection already exist for %s", PoolIdFromInt(poolId))
+	}
 	return nil
 }
 

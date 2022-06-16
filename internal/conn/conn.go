@@ -2,7 +2,6 @@ package conn
 
 import (
 	"encoding/gob"
-	"fmt"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -29,14 +28,18 @@ type BaseConnection struct {
 	Exit     chan error
 }
 
-func NewBaseConnection(impl impl.Impl, nodeId, targetId string) *BaseConnection {
-	return &BaseConnection{
+func NewBaseConnection(impl impl.Impl, nodeId, targetId string, poolId int64) *BaseConnection {
+	ret := &BaseConnection{
 		Exit:     make(chan error, 10),
 		nodeId:   nodeId,
 		targetId: targetId,
-		poolId:   time.Now().UnixNano(),
+		poolId:   poolId,
 		impl:     impl,
 	}
+	if ret.poolId == 0 {
+		ret.poolId = time.Now().UnixNano()
+	}
+	return ret
 }
 
 func (bc *BaseConnection) Close() {
@@ -47,7 +50,7 @@ func (bc *BaseConnection) Close() {
 }
 
 func (bc *BaseConnection) PoolIdStr() string {
-	return fmt.Sprintf("conn_%d", bc.poolId)
+	return PoolIdFromInt(bc.poolId)
 }
 func (bc *BaseConnection) PoolId() int64 {
 	return bc.poolId

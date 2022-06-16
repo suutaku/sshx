@@ -51,7 +51,7 @@ func (ds *DirectService) Start() error {
 			}
 			logrus.Debug("new direct info com ", info)
 			imp := impl.GetImpl(info.ImplCode)
-			conn := NewDirectConnection(imp, ds.Id(), info.HostId, &ds.CleanChan)
+			conn := NewDirectConnection(imp, ds.Id(), info.HostId, 0, &ds.CleanChan)
 			conn.Conn = sock
 			ds.AddPair(conn)
 			err = conn.Response()
@@ -64,7 +64,11 @@ func (ds *DirectService) Start() error {
 	return nil
 }
 
-func (ds *DirectService) CreateConnection(sender impl.Sender, sock net.Conn) error {
+func (ds *DirectService) CreateConnection(sender impl.Sender, sock net.Conn, poolId int64) error {
+	err := ds.BaseConnectionService.CreateConnection(sender, sock, poolId)
+	if err != nil {
+		return err
+	}
 	iface := sender.GetImpl()
 	if iface == nil {
 		return fmt.Errorf("unknown impl")
@@ -73,12 +77,15 @@ func (ds *DirectService) CreateConnection(sender impl.Sender, sock net.Conn) err
 	if !sender.Detach {
 		iface.SetConn(sock)
 	}
-	pair := NewDirectConnection(iface, ds.Id(), iface.HostId(), &ds.CleanChan)
-	err := pair.Dial()
+	pair := NewDirectConnection(iface, ds.Id(), iface.HostId(), poolId, &ds.CleanChan)
+	err = pair.Dial()
 	if err != nil {
 		return err
 	}
-	ds.AddPair(pair)
+	err = ds.AddPair(pair)
+	if err != nil {
+		return err
+	}
 	if !sender.Detach {
 		// fill pair id and send back the 'sender'
 		sender.PairId = []byte(pair.PoolIdStr())

@@ -4,6 +4,7 @@ import (
 	"encoding/gob"
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/suutaku/sshx/pkg/impl"
@@ -34,7 +35,7 @@ func (node *Node) ServeTCP() {
 		case types.OPTION_TYPE_UP:
 
 			logrus.Debug("up option")
-			err := node.connMgr.CreateConnection(tmp, sock)
+			err := node.connMgr.CreateConnection(tmp, sock, time.Now().UnixNano())
 			if err != nil {
 				sock.Close()
 				logrus.Error(err)

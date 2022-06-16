@@ -27,7 +27,7 @@ type WebRTC struct {
 	stmChan *chan string
 }
 
-func NewWebRTC(conf webrtc.Configuration, impl impl.Impl, nodeId string, targetId string, stmChan *chan string) *WebRTC {
+func NewWebRTC(conf webrtc.Configuration, impl impl.Impl, nodeId string, targetId string, poolId int64, stmChan *chan string) *WebRTC {
 	pc, err := webrtc.NewPeerConnection(conf)
 	if err != nil {
 		logrus.Error("rtc error:", err)
@@ -36,7 +36,7 @@ func NewWebRTC(conf webrtc.Configuration, impl impl.Impl, nodeId string, targetI
 	ret := &WebRTC{
 		PeerConnection: pc,
 		conf:           conf,
-		BaseConnection: *NewBaseConnection(impl, nodeId, targetId),
+		BaseConnection: *NewBaseConnection(impl, nodeId, targetId, poolId),
 		stmChan:        stmChan,
 	}
 
