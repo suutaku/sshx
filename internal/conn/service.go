@@ -14,7 +14,7 @@ import (
 type ConnectionService interface {
 	Start() error
 	SetStateManager(*StatManager) error
-	CreateConnection(impl.Sender, net.Conn, int64) error
+	CreateConnection(impl.Sender, net.Conn, types.PoolId) error
 	DestroyConnection(impl.Sender) error
 	AttachConnection(impl.Sender, net.Conn) error
 	IsReady() bool
@@ -74,9 +74,11 @@ func (base *BaseConnectionService) SetStateManager(stm *StatManager) error {
 	return nil
 }
 
-func (base *BaseConnectionService) CreateConnection(sender impl.Sender, conn net.Conn, poolId int64) error {
-	if base.GetPair(PoolIdFromInt(poolId)) != nil {
-		return fmt.Errorf("connection already exist for %s", PoolIdFromInt(poolId))
+func (base *BaseConnectionService) CreateConnection(sender impl.Sender, conn net.Conn, poolId types.PoolId) error {
+
+	if base.GetPair(poolId.String()) != nil {
+
+		return fmt.Errorf("connection already exist for %s", poolId.String())
 	}
 	return nil
 }

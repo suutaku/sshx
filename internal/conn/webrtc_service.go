@@ -41,7 +41,7 @@ func (wss *WebRTCService) Start() error {
 	return nil
 }
 
-func (wss *WebRTCService) CreateConnection(sender impl.Sender, sock net.Conn, poolId int64) error {
+func (wss *WebRTCService) CreateConnection(sender impl.Sender, sock net.Conn, poolId types.PoolId) error {
 	err := wss.BaseConnectionService.CreateConnection(sender, sock, poolId)
 	if err != nil {
 		return err
@@ -76,14 +76,14 @@ func (wss *WebRTCService) CreateConnection(sender impl.Sender, sock net.Conn, po
 	})
 	if !sender.Detach {
 		// fill pair id and send back the 'sender'
-		sender.PairId = []byte(wss.poolId(info))
+		sender.PairId = []byte(info.Id.String())
 		go pair.ResponseTCP(sender)
 	}
 	return nil
 }
 
 func (wss *WebRTCService) isValidSignalingInfo(input types.SignalingInfo) bool {
-	if input.ID == 0 {
+	if input.Id.Raw() == 0 {
 		return false
 	}
 	if input.Source == "" {
@@ -95,15 +95,8 @@ func (wss *WebRTCService) isValidSignalingInfo(input types.SignalingInfo) bool {
 	// if input.Source == input.Target {
 	// 	return false
 	// }
-	logrus.Debugf(" id %d source %s target %s flag %d", input.ID, input.Source, input.Target, input.Flag)
+	logrus.Debugf(" id %d source %s target %s flag %d", input.Id, input.Source, input.Target, input.Flag)
 	return true
-}
-
-func (wss *WebRTCService) poolId(info *types.SignalingInfo) string {
-	if info.ID == 0 {
-		panic("info id was empty")
-	}
-	return PoolIdFromInt(info.ID)
 }
 
 func (wss *WebRTCService) push(info *types.SignalingInfo) error {
@@ -131,7 +124,9 @@ func (wss *WebRTCService) ServeOfferInfo(info *types.SignalingInfo) {
 		return
 	}
 	iface.SetHostId(info.Source)
-	pair := NewWebRTC(wss.conf, iface, wss.id, info.Source, 0, &wss.CleanChan)
+
+	info.Id.SetDirection(CONNECTION_DRECT_IN)
+	pair := NewWebRTC(wss.conf, iface, wss.id, info.Source, info.Id, &wss.CleanChan)
 	err := wss.AddPair(pair)
 	if err != nil {
 		logrus.Error(err)
@@ -175,18 +170,19 @@ func (wss *WebRTCService) ServePush(info *types.SignalingInfo) {
 
 func (wss *WebRTCService) ServeCandidateInfo(info *types.SignalingInfo) {
 	logrus.Debug("add candidate")
-	pair := wss.GetPair(wss.poolId(info))
+	pair := wss.GetPair(info.Id.String())
 	if pair == nil {
-		logrus.Warn("pair ", wss.poolId(info), " was empty, cannot serve candidate")
+		logrus.Warn("pair ", info.Id.String(), " was empty, cannot serve candidate")
 		return
 	}
-	pair.(*WebRTC).AddCandidate(&webrtc.ICECandidateInit{Candidate: string(info.Candidate)}, info.ID)
+	pair.(*WebRTC).AddCandidate(&webrtc.ICECandidateInit{Candidate: string(info.Candidate)}, info.Id)
 }
 
 func (wss *WebRTCService) ServeAnwserInfo(info *types.SignalingInfo) {
-	pair := wss.GetPair(wss.poolId(info)).(*WebRTC)
+	info.Id.SetDirection(CONNECTION_DRECT_OUT)
+	pair := wss.GetPair(info.Id.String()).(*WebRTC)
 	if pair == nil {
-		logrus.Error("pair for id ", wss.poolId(info), " was empty, cannot serve anwser")
+		logrus.Error("pair for id ", info.Id.String(), " was empty, cannot serve anwser")
 		return
 	}
 	err := pair.MakeConnection(info)
@@ -242,14 +238,14 @@ func (wss *WebRTCService) SignalCandidate(info *types.SignalingInfo, target stri
 	if c == nil {
 		return
 	}
-	if wss.GetPair(wss.poolId(info)) == nil {
+	if wss.GetPair(info.Id.String()) == nil {
 		return
 	}
 	cadInfo := &types.SignalingInfo{
 		Flag:              types.SIG_TYPE_CANDIDATE,
 		Source:            wss.id,
 		Candidate:         []byte(c.ToJSON().Candidate),
-		ID:                info.ID,
+		Id:                info.Id,
 		RemoteRequestType: info.RemoteRequestType,
 		Target:            target,
 	}

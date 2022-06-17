@@ -8,6 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/suutaku/sshx/internal/utils"
 	"github.com/suutaku/sshx/pkg/impl"
+	"github.com/suutaku/sshx/pkg/types"
 )
 
 type DirectConnection struct {
@@ -16,7 +17,7 @@ type DirectConnection struct {
 	CleanChan *chan string
 }
 
-func NewDirectConnection(impl impl.Impl, nodeId string, targetId string, poolId int64, cleanChan *chan string) *DirectConnection {
+func NewDirectConnection(impl impl.Impl, nodeId string, targetId string, poolId types.PoolId, cleanChan *chan string) *DirectConnection {
 	ret := &DirectConnection{
 		BaseConnection: *NewBaseConnection(impl, nodeId, targetId, poolId),
 		CleanChan:      cleanChan,
@@ -39,6 +40,7 @@ func (dc *DirectConnection) Dial() error {
 	info := DirectInfo{
 		ImplCode: dc.impl.Code(),
 		HostId:   dc.nodeId,
+		Id:       dc.poolId.Raw(),
 	}
 	gob.NewEncoder(conn).Encode(info)
 	err = dc.BaseConnection.Dial()
@@ -50,7 +52,7 @@ func (dc *DirectConnection) Dial() error {
 	dc.Conn = conn
 	go func() {
 		utils.Pipe(&implConn, &dc.Conn)
-		*dc.CleanChan <- dc.PoolIdStr()
+		*dc.CleanChan <- dc.PoolId().String()
 	}()
 	return nil
 }
@@ -63,7 +65,7 @@ func (dc *DirectConnection) Response() error {
 	implConn := dc.impl.Conn() //connection from dial ssh
 	go func() {
 		utils.Pipe(&implConn, &dc.Conn)
-		*dc.CleanChan <- dc.PoolIdStr()
+		*dc.CleanChan <- dc.poolId.String()
 	}()
 
 	return nil

@@ -6,6 +6,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/suutaku/sshx/pkg/impl"
+	"github.com/suutaku/sshx/pkg/types"
 )
 
 const (
@@ -16,9 +17,8 @@ const (
 type Connection interface {
 	Close()
 	GetImpl() impl.Impl
-	PoolIdStr() string
-	PoolId() int64
-	ResetPoolId(id int64)
+	PoolId() *types.PoolId
+	ResetPoolId(id types.PoolId)
 	ResponseTCP(resp impl.Sender)
 	TargetId() string
 	Dial() error
@@ -26,15 +26,14 @@ type Connection interface {
 }
 
 type BaseConnection struct {
-	impl      impl.Impl
-	nodeId    string
-	targetId  string
-	poolId    int64
-	Exit      chan error
-	Derection int32
+	impl     impl.Impl
+	nodeId   string
+	targetId string
+	poolId   types.PoolId
+	Exit     chan error
 }
 
-func NewBaseConnection(impl impl.Impl, nodeId, targetId string, poolId int64) *BaseConnection {
+func NewBaseConnection(impl impl.Impl, nodeId, targetId string, poolId types.PoolId) *BaseConnection {
 	impl.Init()
 	ret := &BaseConnection{
 		Exit:     make(chan error, 10),
@@ -43,8 +42,8 @@ func NewBaseConnection(impl impl.Impl, nodeId, targetId string, poolId int64) *B
 		poolId:   poolId,
 		impl:     impl,
 	}
-	if ret.poolId == 0 {
-		ret.poolId = time.Now().UnixNano()
+	if ret.PoolId().Raw() == 0 {
+		ret.poolId = *types.NewPoolId(time.Now().UnixNano())
 	}
 	return ret
 }
@@ -56,17 +55,14 @@ func (bc *BaseConnection) Close() {
 	}
 }
 
-func (bc *BaseConnection) PoolIdStr() string {
-	return PoolIdFromInt(bc.poolId)
-}
-func (bc *BaseConnection) PoolId() int64 {
-	return bc.poolId
+func (bc *BaseConnection) PoolId() *types.PoolId {
+	return &bc.poolId
 }
 func (bc *BaseConnection) GetImpl() impl.Impl {
 	return bc.impl
 }
 
-func (bc *BaseConnection) ResetPoolId(id int64) {
+func (bc *BaseConnection) ResetPoolId(id types.PoolId) {
 	logrus.Debug("reset pool id from ", bc.poolId, " to ", id)
 	bc.poolId = id
 }
@@ -76,13 +72,13 @@ func (bc *BaseConnection) TargetId() string {
 }
 
 func (bc *BaseConnection) Dial() error {
-	bc.Derection = CONNECTION_DRECT_OUT
-	go bc.impl.Dial()
+	bc.poolId.SetDirection(CONNECTION_DRECT_OUT)
+	bc.impl.Dial()
 	return nil
 }
 func (bc *BaseConnection) Response() error {
-	bc.Derection = CONNECTION_DRECT_IN
-	go bc.impl.Response()
+	bc.poolId.SetDirection(CONNECTION_DRECT_IN)
+	bc.impl.Response()
 	return nil
 }
 

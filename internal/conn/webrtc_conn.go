@@ -27,13 +27,13 @@ type WebRTC struct {
 	stmChan *chan string
 }
 
-func NewWebRTC(conf webrtc.Configuration, impl impl.Impl, nodeId string, targetId string, poolId int64, stmChan *chan string) *WebRTC {
+func NewWebRTC(conf webrtc.Configuration, impl impl.Impl, nodeId string, targetId string, poolId types.PoolId, stmChan *chan string) *WebRTC {
 	pc, err := webrtc.NewPeerConnection(conf)
 	if err != nil {
 		logrus.Error("rtc error:", err)
 		return nil
 	}
-	impl.SetPairId(PoolIdFromInt(poolId))
+	impl.SetPairId(poolId.String())
 	ret := &WebRTC{
 		PeerConnection: pc,
 		conf:           conf,
@@ -149,7 +149,7 @@ func (pair *WebRTC) Close() {
 	logrus.Debug("close pair")
 	if pair.PeerConnection != nil {
 		pair.PeerConnection.Close()
-		(*pair.stmChan) <- pair.PoolIdStr()
+		(*pair.stmChan) <- pair.poolId.String()
 	}
 	if pair.impl != nil {
 		pair.impl.Close()
@@ -173,7 +173,7 @@ func (pair *WebRTC) Offer(target string, reType int32) *types.SignalingInfo {
 		return nil
 	}
 	info := types.SignalingInfo{
-		ID:                pair.PoolId(),
+		Id:                pair.poolId,
 		Flag:              types.SIG_TYPE_OFFER,
 		Target:            pair.targetId,
 		SDP:               offer.SDP,
@@ -207,7 +207,7 @@ func (pair *WebRTC) Anwser(info *types.SignalingInfo) *types.SignalingInfo {
 		return nil
 	}
 	return &types.SignalingInfo{
-		ID:     info.ID,
+		Id:     info.Id,
 		Flag:   types.SIG_TYPE_ANSWER,
 		SDP:    answer.SDP,
 		Target: pair.targetId,
@@ -224,7 +224,7 @@ func (pair *WebRTC) MakeConnection(info *types.SignalingInfo) error {
 		Type: webrtc.SDPTypeAnswer,
 		SDP:  info.SDP,
 	}); err != nil {
-		logrus.Error("make connection rtc error: ", pair.PoolIdStr(), " ", err)
+		logrus.Error("make connection rtc error: ", pair.poolId.String(), " ", err)
 		pair.Close()
 		return err
 	}
@@ -232,10 +232,10 @@ func (pair *WebRTC) MakeConnection(info *types.SignalingInfo) error {
 	return nil
 }
 
-func (pair *WebRTC) AddCandidate(ca *webrtc.ICECandidateInit, id int64) error {
-	if pair != nil && id == pair.PoolId() {
+func (pair *WebRTC) AddCandidate(ca *webrtc.ICECandidateInit, id types.PoolId) error {
+	if pair != nil && id.Raw() == pair.PoolId().Raw() {
 		if !pair.IsRemoteDescriptionSet() {
-			logrus.Warn("waiting remote description be set ", pair.PoolIdStr())
+			logrus.Warn("waiting remote description be set ", pair.poolId.String())
 			return fmt.Errorf("remote description NOT set")
 		}
 		err := pair.PeerConnection.AddICECandidate(*ca)

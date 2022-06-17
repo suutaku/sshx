@@ -7,11 +7,13 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/suutaku/sshx/pkg/impl"
+	"github.com/suutaku/sshx/pkg/types"
 )
 
 const directPort = 8099
 
 type DirectInfo struct {
+	Id       int64
 	ImplCode int32
 	HostId   string
 }
@@ -51,7 +53,9 @@ func (ds *DirectService) Start() error {
 			}
 			logrus.Debug("new direct info com ", info)
 			imp := impl.GetImpl(info.ImplCode)
-			conn := NewDirectConnection(imp, ds.Id(), info.HostId, 0, &ds.CleanChan)
+			poolId := types.NewPoolId(info.Id)
+			poolId.SetDirection(CONNECTION_DRECT_IN)
+			conn := NewDirectConnection(imp, ds.Id(), info.HostId, *poolId, &ds.CleanChan)
 			conn.Conn = sock
 			ds.AddPair(conn)
 			err = conn.Response()
@@ -64,7 +68,7 @@ func (ds *DirectService) Start() error {
 	return nil
 }
 
-func (ds *DirectService) CreateConnection(sender impl.Sender, sock net.Conn, poolId int64) error {
+func (ds *DirectService) CreateConnection(sender impl.Sender, sock net.Conn, poolId types.PoolId) error {
 	err := ds.BaseConnectionService.CreateConnection(sender, sock, poolId)
 	if err != nil {
 		return err
@@ -89,7 +93,7 @@ func (ds *DirectService) CreateConnection(sender impl.Sender, sock net.Conn, poo
 	}
 	if !sender.Detach {
 		// fill pair id and send back the 'sender'
-		sender.PairId = []byte(pair.PoolIdStr())
+		sender.PairId = []byte(pair.poolId.String())
 		go pair.ResponseTCP(sender)
 	}
 	return nil

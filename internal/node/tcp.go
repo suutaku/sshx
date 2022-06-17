@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/suutaku/sshx/internal/conn"
 	"github.com/suutaku/sshx/pkg/impl"
 	"github.com/suutaku/sshx/pkg/types"
 )
@@ -35,7 +36,9 @@ func (node *Node) ServeTCP() {
 		case types.OPTION_TYPE_UP:
 
 			logrus.Debug("up option")
-			err := node.connMgr.CreateConnection(tmp, sock, time.Now().UnixNano())
+			poolId := types.NewPoolId(time.Now().UnixNano())
+			poolId.SetDirection(conn.CONNECTION_DRECT_OUT)
+			err := node.connMgr.CreateConnection(tmp, sock, *poolId)
 			if err != nil {
 				sock.Close()
 				logrus.Error(err)
