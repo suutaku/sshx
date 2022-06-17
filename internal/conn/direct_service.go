@@ -82,6 +82,7 @@ func (ds *DirectService) CreateConnection(sender impl.Sender, sock net.Conn, poo
 	if err != nil {
 		return err
 	}
+	logrus.Warn("direct add pair")
 	err = ds.AddPair(pair)
 	if err != nil {
 		return err

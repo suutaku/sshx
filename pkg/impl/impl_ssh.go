@@ -65,6 +65,8 @@ func (s *SSH) Dial() error {
 }
 
 func (s *SSH) Response() error {
+	s.lock.Lock()
+	defer s.lock.Unlock()
 	cm := conf.NewConfManager("")
 
 	logrus.Debug("Dail local addr ", cm.Conf.LocalSSHPort)
@@ -72,7 +74,7 @@ func (s *SSH) Response() error {
 	if err != nil {
 		return err
 	}
-	s.BaseImpl.SetConn(conn)
+	s.BaseImpl.conn = &conn
 	return nil
 }
 

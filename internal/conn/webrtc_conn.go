@@ -33,14 +33,13 @@ func NewWebRTC(conf webrtc.Configuration, impl impl.Impl, nodeId string, targetI
 		logrus.Error("rtc error:", err)
 		return nil
 	}
+	impl.SetPairId(PoolIdFromInt(poolId))
 	ret := &WebRTC{
 		PeerConnection: pc,
 		conf:           conf,
 		BaseConnection: *NewBaseConnection(impl, nodeId, targetId, poolId),
 		stmChan:        stmChan,
 	}
-
-	impl.SetPairId(ret.PoolIdStr())
 	return ret
 }
 

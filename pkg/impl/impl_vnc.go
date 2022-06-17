@@ -30,6 +30,8 @@ func (vnc *VNC) Dial() error {
 }
 
 func (vnc *VNC) Response() error {
+	vnc.lock.Unlock()
+	defer vnc.lock.Unlock()
 	cm := conf.NewConfManager("")
 	localAddr := fmt.Sprintf("ws://%s:%d", cm.Conf.VNCConf.Websockify.Host, cm.Conf.VNCConf.Websockify.Port)
 	logrus.Debug("VNCResponser response ", localAddr)
@@ -37,6 +39,7 @@ func (vnc *VNC) Response() error {
 	if err != nil {
 		return err
 	}
-	vnc.BaseImpl.SetConn(vncConn.UnderlyingConn())
+	unerConn := vncConn.UnderlyingConn()
+	vnc.BaseImpl.conn = &unerConn
 	return nil
 }

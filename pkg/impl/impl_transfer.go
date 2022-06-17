@@ -60,9 +60,10 @@ func (tr *Transfer) Code() int32 {
 }
 
 func (tr *Transfer) Response() error {
+	tr.lock.Lock()
 	s, c := net.Pipe()
-	tr.SetConn(c)
-
+	tr.BaseImpl.conn = &c
+	tr.lock.Unlock()
 	go func() {
 		// get file header
 		var info FileInfo

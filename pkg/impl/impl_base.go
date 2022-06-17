@@ -3,6 +3,7 @@ package impl
 import (
 	"io"
 	"net"
+	"sync"
 
 	"github.com/sirupsen/logrus"
 )
@@ -12,6 +13,7 @@ type BaseImpl struct {
 	conn   *net.Conn
 	Parent string
 	PId    string
+	lock   sync.Mutex
 }
 
 func NewBaseImpl() *BaseImpl {
@@ -21,6 +23,8 @@ func NewBaseImpl() *BaseImpl {
 func (base *BaseImpl) Init() {}
 
 func (base *BaseImpl) Conn() net.Conn {
+	base.lock.Lock()
+	defer base.lock.Unlock()
 	return *base.conn
 }
 
@@ -52,19 +56,27 @@ func (base *BaseImpl) SetParentId(id string) {
 }
 
 func (base *BaseImpl) SetConn(conn net.Conn) {
+	base.lock.Lock()
+	defer base.lock.Unlock()
 	logrus.Debug("set connection (non-detach)")
 	base.conn = &conn
 }
 
 func (base *BaseImpl) Reader() io.Reader {
+	base.lock.Lock()
+	defer base.lock.Unlock()
 	return *(base.conn)
 }
 
 func (base *BaseImpl) Writer() io.Writer {
+	base.lock.Lock()
+	defer base.lock.Unlock()
 	return (*base.conn)
 }
 
 func (base *BaseImpl) ReadWriteCloser() io.ReadWriteCloser {
+	base.lock.Lock()
+	defer base.lock.Unlock()
 	return (*base.conn)
 }
 

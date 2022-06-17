@@ -202,6 +202,7 @@ func (stm *StatManager) AddPair(pair Connection) error {
 		stm.addChild(pair.GetImpl().ParentId(), pair.PoolIdStr())
 	}
 	stm.putStat(stat)
+	logrus.Debug("put pair on stat ", impl.GetImplName(pair.GetImpl().Code()), " with pair id ", stat.PairId)
 	return nil
 }
 

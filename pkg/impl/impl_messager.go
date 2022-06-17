@@ -90,11 +90,13 @@ func (m *Messager) serveSend() {
 }
 
 func (m *Messager) Response() error {
+	m.lock.Lock()
+	defer m.lock.Unlock()
 	// a naive test code
 	m.isRuning = true
 	c, s := net.Pipe()
 	m.attachConn = c
-	m.BaseImpl.SetConn(s)
+	m.BaseImpl.conn = &s
 	go m.serveRecv()
 	go m.serveSend()
 	return nil

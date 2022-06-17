@@ -59,6 +59,7 @@ func (wss *WebRTCService) CreateConnection(sender impl.Sender, sock net.Conn, po
 	if err != nil {
 		return err
 	}
+	logrus.Warn("rtc add pair")
 	info := pair.Offer(string(iface.HostId()), sender.Type)
 	err = wss.AddPair(pair)
 	if err != nil {
@@ -131,9 +132,12 @@ func (wss *WebRTCService) ServeOfferInfo(info *types.SignalingInfo) {
 	}
 	iface.SetHostId(info.Source)
 	pair := NewWebRTC(wss.conf, iface, wss.id, info.Source, 0, &wss.CleanChan)
-	pair.ResetPoolId(info.ID)
-	wss.AddPair(pair)
-	err := pair.Response()
+	err := wss.AddPair(pair)
+	if err != nil {
+		logrus.Error(err)
+		return
+	}
+	err = pair.Response()
 	if err != nil {
 		logrus.Error(err)
 		return
