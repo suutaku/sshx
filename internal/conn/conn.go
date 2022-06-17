@@ -8,6 +8,11 @@ import (
 	"github.com/suutaku/sshx/pkg/impl"
 )
 
+const (
+	CONNECTION_DRECT_IN = iota
+	CONNECTION_DRECT_OUT
+)
+
 type Connection interface {
 	Close()
 	GetImpl() impl.Impl
@@ -21,11 +26,12 @@ type Connection interface {
 }
 
 type BaseConnection struct {
-	impl     impl.Impl
-	nodeId   string
-	targetId string
-	poolId   int64
-	Exit     chan error
+	impl      impl.Impl
+	nodeId    string
+	targetId  string
+	poolId    int64
+	Exit      chan error
+	Derection int32
 }
 
 func NewBaseConnection(impl impl.Impl, nodeId, targetId string, poolId int64) *BaseConnection {
@@ -70,10 +76,12 @@ func (bc *BaseConnection) TargetId() string {
 }
 
 func (bc *BaseConnection) Dial() error {
+	bc.Derection = CONNECTION_DRECT_OUT
 	go bc.impl.Dial()
 	return nil
 }
 func (bc *BaseConnection) Response() error {
+	bc.Derection = CONNECTION_DRECT_IN
 	go bc.impl.Response()
 	return nil
 }

@@ -56,7 +56,7 @@ func (pair *WebRTC) Response() error {
 	peer.OnDataChannel(func(dc *webrtc.DataChannel) {
 		//dc.Lock()
 		dc.OnOpen(func() {
-			err := pair.impl.Response()
+			err := pair.BaseConnection.Response()
 			if err != nil {
 				logrus.Error(err)
 				pair.Exit <- err
@@ -107,7 +107,7 @@ func (pair *WebRTC) Dial() error {
 		return err
 	}
 	go func() {
-		err := pair.impl.Dial()
+		err := pair.BaseConnection.Dial()
 		if err != nil {
 			logrus.Error(err)
 			pair.Exit <- err

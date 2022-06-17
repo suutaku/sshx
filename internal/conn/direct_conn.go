@@ -41,7 +41,10 @@ func (dc *DirectConnection) Dial() error {
 		HostId:   dc.nodeId,
 	}
 	gob.NewEncoder(conn).Encode(info)
-	go dc.impl.Dial()
+	err = dc.BaseConnection.Dial()
+	if err != nil {
+		return err
+	}
 	dc.Exit <- err
 	implConn := dc.impl.Conn()
 	dc.Conn = conn
@@ -53,7 +56,10 @@ func (dc *DirectConnection) Dial() error {
 }
 
 func (dc *DirectConnection) Response() error {
-	dc.impl.Response()
+	err := dc.BaseConnection.Response()
+	if err != nil {
+		return err
+	}
 	implConn := dc.impl.Conn() //connection from dial ssh
 	go func() {
 		utils.Pipe(&implConn, &dc.Conn)
