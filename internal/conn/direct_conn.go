@@ -69,11 +69,11 @@ func (dc *DirectConnection) Dial() error {
 }
 
 func (dc *DirectConnection) Response() error {
+	dc.Ready()
 	err := dc.BaseConnection.Response()
 	if err != nil {
 		return err
 	}
-	dc.Ready()
 	implConn := dc.impl.Conn() //connection from dial ssh
 	go func() {
 		utils.Pipe(&implConn, &dc.Conn)

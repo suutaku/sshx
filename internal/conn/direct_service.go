@@ -56,12 +56,12 @@ func (ds *DirectService) Start() error {
 			// server reset direction
 			conn := NewDirectConnection(imp, ds.Id(), info.HostId, *poolId, CONNECTION_DRECT_IN, &ds.CleanChan)
 			conn.Conn = sock
-			ds.AddPair(conn)
 			err = conn.Response()
 			if err != nil {
 				logrus.Error(err)
 				continue
 			}
+			ds.AddPair(conn)
 		}
 	}()
 	return nil
