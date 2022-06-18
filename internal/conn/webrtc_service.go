@@ -81,7 +81,7 @@ func (wss *WebRTCService) CreateConnection(sender impl.Sender, sock net.Conn, po
 			return
 		}
 		info.Id.Direction = pair.Direction()
-		wss.SignalCandidate(info, iface.HostId(), c)
+		wss.SignalCandidate(info, info.Source, c)
 	})
 	if !sender.Detach {
 		// fill pair id and send back the 'sender'
@@ -142,7 +142,7 @@ func (wss *WebRTCService) ServeOfferInfo(info types.SignalingInfo) {
 		logrus.Debug("send candidate")
 		// set candidate pool id direction to out for client
 		info.Id.Direction = pair.Direction()
-		wss.SignalCandidate(info, info.Target, c)
+		wss.SignalCandidate(info, info.Source, c)
 	})
 	// set candidate pool id direction to out for client
 	awser, err := pair.Anwser(info)
@@ -174,6 +174,7 @@ func (wss *WebRTCService) ServePush(info types.SignalingInfo) {
 }
 
 func (wss *WebRTCService) ServeCandidateInfo(info types.SignalingInfo) {
+	info.Id.Direction = ^info.Id.Direction & 0x01
 	logrus.Warn("candidate comes ", info.Id.String(info.Id.Direction))
 	pair := wss.GetPair(info.Id.String(info.Id.Direction))
 	if pair == nil {
