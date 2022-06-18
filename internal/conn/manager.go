@@ -180,15 +180,24 @@ func (stm *StatManager) RemovePair(id string) {
 }
 
 func (stm *StatManager) AddPair(pair Connection) error {
-	stm.lock.Lock()
-	defer stm.lock.Unlock()
+
 	if pair == nil {
 		return fmt.Errorf("pair was empty")
 	}
+	// input connection not ready, and other connection eithre
+	for !pair.IsReady() && stm.cpPool[pair.PoolId().String(pair.Direction())] == nil {
+		logrus.Warnf("watting %s\n", pair.Name())
+		time.Sleep(500 * time.Millisecond)
+	}
+	// input connection ready or other connection on pool, or both,
+	// but we only take the first connection in pool.
+	// so if pool not empty, drop the input connection.
 	oldPair := stm.cpPool[pair.PoolId().String(pair.Direction())]
 	if oldPair != nil {
-		return fmt.Errorf("pair already exist, with %s", oldPair.PoolId().String(pair.Direction()))
+		pair.Close()
+		return fmt.Errorf("pair already exist, drop %s", pair.Name())
 	}
+
 	stm.cpPool[pair.PoolId().String(pair.Direction())] = pair
 	stat := types.Status{
 		PairId:    pair.PoolId().String(pair.Direction()),

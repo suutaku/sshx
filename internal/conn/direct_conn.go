@@ -4,6 +4,7 @@ import (
 	"encoding/gob"
 	"fmt"
 	"net"
+	"reflect"
 
 	"github.com/sirupsen/logrus"
 	"github.com/suutaku/sshx/internal/utils"
@@ -31,6 +32,14 @@ func (dc *DirectConnection) Close() {
 	dc.Conn.Close()
 }
 
+func (dc *DirectConnection) Name() string {
+	if t := reflect.TypeOf(dc); t.Kind() == reflect.Ptr {
+		return "*" + t.Elem().Name()
+	} else {
+		return t.Name()
+	}
+}
+
 func (dc *DirectConnection) Dial() error {
 	logrus.Debug("dial ", dc.TargetId(), " directly")
 	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", dc.TargetId(), directPort))
@@ -49,6 +58,7 @@ func (dc *DirectConnection) Dial() error {
 		return err
 	}
 	dc.Exit <- err
+	dc.Ready()
 	implConn := dc.impl.Conn()
 	dc.Conn = conn
 	go func() {
@@ -63,6 +73,7 @@ func (dc *DirectConnection) Response() error {
 	if err != nil {
 		return err
 	}
+	dc.Ready()
 	implConn := dc.impl.Conn() //connection from dial ssh
 	go func() {
 		utils.Pipe(&implConn, &dc.Conn)

@@ -81,7 +81,7 @@ func (wss *WebRTCService) CreateConnection(sender impl.Sender, sock net.Conn, po
 			return
 		}
 		info.Id.Direction = pair.Direction()
-		wss.SignalCandidate(info, info.Source, c)
+		wss.SignalCandidate(info, info.Target, c)
 	})
 	if !sender.Detach {
 		// fill pair id and send back the 'sender'
@@ -128,12 +128,13 @@ func (wss *WebRTCService) ServeOfferInfo(info types.SignalingInfo) {
 	iface.SetHostId(info.Source)
 	// set candidate pool id direction to out for self(server)
 	pair := NewWebRTC(wss.conf, iface, wss.id, info.Source, info.Id, CONNECTION_DRECT_IN, &wss.CleanChan)
-	err := wss.AddPair(pair)
+
+	err := pair.Response()
 	if err != nil {
 		logrus.Error(err)
 		return
 	}
-	err = pair.Response()
+	err = wss.AddPair(pair)
 	if err != nil {
 		logrus.Error(err)
 		return
@@ -170,12 +171,10 @@ func (wss *WebRTCService) ServePush(info types.SignalingInfo) {
 		logrus.Errorln("push to ", info.Target, "faild")
 		return
 	}
-	logrus.Warn("push to ", info.Target, " i'm ", info.Source)
 }
 
 func (wss *WebRTCService) ServeCandidateInfo(info types.SignalingInfo) {
 	info.Id.Direction = ^info.Id.Direction & 0x01
-	logrus.Warn("candidate comes ", info.Id.String(info.Id.Direction))
 	pair := wss.GetPair(info.Id.String(info.Id.Direction))
 	if pair == nil {
 		logrus.Warn("pair ", info.Id.String(info.Id.Direction), " was empty, cannot serve candidate")
@@ -217,7 +216,6 @@ func (wss *WebRTCService) ServeSignaling() {
 				}
 			}
 			res.Body.Close()
-			logrus.Warn("pull from ", info.Source, " i'm ", info.Target)
 			wss.sigPull <- info
 		}
 	}()

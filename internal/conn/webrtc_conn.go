@@ -3,6 +3,7 @@ package conn
 import (
 	"fmt"
 	"io"
+	"reflect"
 	"time"
 
 	"github.com/suutaku/sshx/pkg/impl"
@@ -44,6 +45,14 @@ func NewWebRTC(conf webrtc.Configuration, impl impl.Impl, nodeId string, targetI
 	return ret
 }
 
+func (pair *WebRTC) Name() string {
+	if t := reflect.TypeOf(pair); t.Kind() == reflect.Ptr {
+		return "*" + t.Elem().Name()
+	} else {
+		return t.Name()
+	}
+}
+
 // create responser
 func (pair *WebRTC) Response() error {
 	logrus.Debug("pair response")
@@ -65,6 +74,7 @@ func (pair *WebRTC) Response() error {
 				return
 			}
 			pair.Exit <- err
+			pair.Ready()
 			logrus.Info("data channel open 2")
 			n, err := io.Copy(&Wrapper{dc}, pair.impl.Reader())
 			for dc.BufferedAmount() > 0 {
@@ -123,6 +133,7 @@ func (pair *WebRTC) Dial() error {
 	dc.OnOpen(func() {
 		logrus.Info("data channel open 1")
 		pair.Exit <- nil
+		pair.Ready()
 		// hangs
 		n, err := io.Copy(&Wrapper{dc}, pair.impl.Reader())
 		if err != nil {

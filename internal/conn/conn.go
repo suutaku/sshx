@@ -24,6 +24,9 @@ type Connection interface {
 	Dial() error
 	Response() error
 	Direction() int32
+	IsReady() bool
+	Ready()
+	Name() string
 }
 
 type BaseConnection struct {
@@ -33,6 +36,7 @@ type BaseConnection struct {
 	poolId   types.PoolId
 	Exit     chan error
 	Direct   int32
+	ready    bool
 }
 
 func NewBaseConnection(impl impl.Impl, nodeId, targetId string, poolId types.PoolId, direct int32) *BaseConnection {
@@ -49,6 +53,14 @@ func NewBaseConnection(impl impl.Impl, nodeId, targetId string, poolId types.Poo
 		ret.poolId = *types.NewPoolId(time.Now().UnixNano())
 	}
 	return ret
+}
+
+func (bc *BaseConnection) Ready() {
+	bc.ready = true
+}
+
+func (bc *BaseConnection) IsReady() bool {
+	return bc.ready
 }
 
 func (bc *BaseConnection) Direction() int32 {
