@@ -43,6 +43,7 @@ func NewBaseConnection(impl impl.Impl, nodeId, targetId string, poolId types.Poo
 		targetId: targetId,
 		poolId:   poolId,
 		impl:     impl,
+		Direct:   direct,
 	}
 	if ret.PoolId().Raw() == 0 {
 		ret.poolId = *types.NewPoolId(time.Now().UnixNano())

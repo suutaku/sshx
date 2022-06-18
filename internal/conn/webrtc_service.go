@@ -185,12 +185,12 @@ func (wss *WebRTCService) ServeCandidateInfo(info types.SignalingInfo) {
 
 func (wss *WebRTCService) ServeAnwserInfo(info types.SignalingInfo) {
 	// set candidate pool id direction to out for self(client)
-	pair := wss.GetPair(info.Id.String(CONNECTION_DRECT_OUT)).(*WebRTC)
+	pair := wss.GetPair(info.Id.String(CONNECTION_DRECT_OUT))
 	if pair == nil {
-		logrus.Error("pair for id ", info.Id.String(pair.Direction()), " was empty, cannot serve anwser")
+		logrus.Error("pair for id ", info.Id.String(CONNECTION_DRECT_OUT), " was empty, cannot serve anwser")
 		return
 	}
-	err := pair.MakeConnection(info)
+	err := pair.(*WebRTC).MakeConnection(info)
 	if err != nil {
 		logrus.Error(err)
 	}
