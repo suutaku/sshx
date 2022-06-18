@@ -34,7 +34,8 @@ func (node *Node) ServeTCP() {
 		switch tmp.GetOptionCode() {
 		case types.OPTION_TYPE_UP:
 			logrus.Debug("up option")
-			poolId := types.NewPoolId(time.Now().UnixNano())
+			impl := tmp.GetImpl()
+			poolId := types.NewPoolId(time.Now().UnixNano(), impl.Code())
 			err := node.connMgr.CreateConnection(tmp, sock, *poolId)
 			if err != nil {
 				sock.Close()

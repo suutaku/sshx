@@ -38,7 +38,7 @@ func NewWebRTC(conf webrtc.Configuration, impl impl.Impl, nodeId string, targetI
 	ret := &WebRTC{
 		PeerConnection: pc,
 		conf:           conf,
-		BaseConnection: *NewBaseConnection(impl, nodeId, targetId, poolId, direct),
+		BaseConnection: *NewBaseConnection(impl, nodeId, targetId, poolId, direct, impl.Code()),
 		stmChan:        stmChan,
 	}
 	ret.impl.SetPairId(poolId.String(ret.Direction()))

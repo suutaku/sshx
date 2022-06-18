@@ -39,7 +39,7 @@ type BaseConnection struct {
 	ready    bool
 }
 
-func NewBaseConnection(impl impl.Impl, nodeId, targetId string, poolId types.PoolId, direct int32) *BaseConnection {
+func NewBaseConnection(impl impl.Impl, nodeId, targetId string, poolId types.PoolId, direct, implc int32) *BaseConnection {
 	impl.Init()
 	ret := &BaseConnection{
 		Exit:     make(chan error, 10),
@@ -50,7 +50,7 @@ func NewBaseConnection(impl impl.Impl, nodeId, targetId string, poolId types.Poo
 		Direct:   direct,
 	}
 	if ret.PoolId().Raw() == 0 {
-		ret.poolId = *types.NewPoolId(time.Now().UnixNano())
+		ret.poolId = *types.NewPoolId(time.Now().UnixNano(), implc)
 	}
 	return ret
 }

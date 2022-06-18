@@ -20,7 +20,7 @@ type DirectConnection struct {
 
 func NewDirectConnection(impl impl.Impl, nodeId string, targetId string, poolId types.PoolId, direct int32, cleanChan *chan string) *DirectConnection {
 	ret := &DirectConnection{
-		BaseConnection: *NewBaseConnection(impl, nodeId, targetId, poolId, direct),
+		BaseConnection: *NewBaseConnection(impl, nodeId, targetId, poolId, direct, impl.Code()),
 		CleanChan:      cleanChan,
 	}
 	ret.CleanChan = cleanChan
