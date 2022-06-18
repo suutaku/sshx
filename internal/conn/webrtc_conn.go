@@ -3,6 +3,7 @@ package conn
 import (
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/suutaku/sshx/pkg/impl"
 	"github.com/suutaku/sshx/pkg/types"
@@ -65,7 +66,11 @@ func (pair *WebRTC) Response() error {
 			}
 			pair.Exit <- err
 			logrus.Info("data channel open 2")
-			io.Copy(&Wrapper{dc}, pair.impl.Reader())
+			n, err := io.Copy(&Wrapper{dc}, pair.impl.Reader())
+			for dc.BufferedAmount() > 0 {
+				time.Sleep(100 * time.Millisecond)
+			}
+			logrus.Info("trans2 ", n, err)
 			pair.Exit <- fmt.Errorf("io copy break")
 			dc.Close()
 			pair.Close()
@@ -83,7 +88,7 @@ func (pair *WebRTC) Response() error {
 			}
 		})
 		dc.OnClose(func() {
-			logrus.Debug("data channel close")
+			logrus.Debug("data channel close 2")
 			pair.Exit <- nil
 			pair.Close()
 		})
@@ -119,8 +124,15 @@ func (pair *WebRTC) Dial() error {
 		logrus.Info("data channel open 1")
 		pair.Exit <- nil
 		// hangs
-		io.Copy(&Wrapper{dc}, pair.impl.Reader())
-		pair.Exit <- fmt.Errorf("io copy break 1")
+		n, err := io.Copy(&Wrapper{dc}, pair.impl.Reader())
+		if err != nil {
+			logrus.Error(err)
+		}
+		for dc.BufferedAmount() > 0 {
+			time.Sleep(100 * time.Millisecond)
+		}
+		logrus.Info("trans1 ", n, err)
+		pair.Exit <- err
 		dc.Close()
 		pair.Close()
 		logrus.Info("data channel close 1")
@@ -137,7 +149,7 @@ func (pair *WebRTC) Dial() error {
 		}
 	})
 	dc.OnClose(func() {
-		logrus.Info("data channel close")
+		logrus.Info("data channel close 1")
 		pair.Exit <- fmt.Errorf("data channel close")
 		pair.Close()
 		logrus.Debug("data channel closed")
@@ -156,23 +168,22 @@ func (pair *WebRTC) Close() {
 	}
 }
 
-func (pair *WebRTC) Offer(target string, reType int32) *types.SignalingInfo {
+func (pair *WebRTC) Offer(target string, reType int32) (types.SignalingInfo, error) {
+	var info types.SignalingInfo
 	logrus.Debug("pair offer")
 	if target == "" {
-		return nil
+		return info, fmt.Errorf("target was empty")
 	}
 	offer, err := pair.PeerConnection.CreateOffer(nil)
 	if err != nil {
-		logrus.Error("offer create offer error:", err)
 		pair.Close()
-		return nil
+		return info, err
 	}
 	if err = pair.PeerConnection.SetLocalDescription(offer); err != nil {
-		logrus.Error("offer rtc error:", err)
 		pair.Close()
-		return nil
+		return info, err
 	}
-	info := types.SignalingInfo{
+	ret := types.SignalingInfo{
 		Id:                pair.poolId,
 		Flag:              types.SIG_TYPE_OFFER,
 		Target:            pair.targetId,
@@ -180,42 +191,41 @@ func (pair *WebRTC) Offer(target string, reType int32) *types.SignalingInfo {
 		RemoteRequestType: reType,
 		Source:            pair.nodeId,
 	}
-	return &info
+	return ret, nil
 }
 
-func (pair *WebRTC) Anwser(info *types.SignalingInfo) *types.SignalingInfo {
+func (pair *WebRTC) Anwser(info types.SignalingInfo) (types.SignalingInfo, error) {
 	logrus.Debug("pair anwser")
 	if err := pair.PeerConnection.SetRemoteDescription(webrtc.SessionDescription{
 		Type: webrtc.SDPTypeOffer,
 		SDP:  info.SDP,
 	}); err != nil {
-		logrus.Error("anwser rtc error:", err)
 		pair.Close()
-		return nil
+		return info, err
 	}
 	answer, err := pair.PeerConnection.CreateAnswer(nil)
 	if err != nil {
-		logrus.Error("anwser rtc error:", err)
 		pair.Close()
-		return nil
+		return info, err
 	}
 
 	err = pair.PeerConnection.SetLocalDescription(answer)
 	if err != nil {
 		logrus.Error(err)
 		pair.Close()
-		return nil
+		return info, err
 	}
-	return &types.SignalingInfo{
+	ret := types.SignalingInfo{
 		Id:     info.Id,
 		Flag:   types.SIG_TYPE_ANSWER,
 		SDP:    answer.SDP,
 		Target: pair.targetId,
 		Source: pair.nodeId,
 	}
+	return ret, nil
 }
 
-func (pair *WebRTC) MakeConnection(info *types.SignalingInfo) error {
+func (pair *WebRTC) MakeConnection(info types.SignalingInfo) error {
 	logrus.Debug("pair make connection")
 	if pair == nil || pair.PeerConnection == nil {
 		return fmt.Errorf("invalid peer connection")

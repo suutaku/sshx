@@ -75,7 +75,7 @@ func (base *BaseConnectionService) SetStateManager(stm *StatManager) error {
 }
 
 func (base *BaseConnectionService) CreateConnection(sender impl.Sender, conn net.Conn, poolId types.PoolId) error {
-
+	poolId.SetDirection(CONNECTION_DRECT_OUT)
 	if base.GetPair(poolId.String()) != nil {
 
 		return fmt.Errorf("connection already exist for %s", poolId.String())

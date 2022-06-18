@@ -42,6 +42,7 @@ func (dc *DirectConnection) Dial() error {
 		HostId:   dc.nodeId,
 		Id:       dc.poolId.Raw(),
 	}
+	logrus.Debug("send direct info")
 	gob.NewEncoder(conn).Encode(info)
 	err = dc.BaseConnection.Dial()
 	if err != nil {

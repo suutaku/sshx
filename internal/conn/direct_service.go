@@ -44,7 +44,6 @@ func (ds *DirectService) Start() error {
 				logrus.Error(err)
 				continue
 			}
-			logrus.Debug("new direct info com")
 			var info DirectInfo
 			err = gob.NewDecoder(sock).Decode(&info)
 			if err != nil {
@@ -54,6 +53,7 @@ func (ds *DirectService) Start() error {
 			logrus.Debug("new direct info com ", info)
 			imp := impl.GetImpl(info.ImplCode)
 			poolId := types.NewPoolId(info.Id)
+			// server reset direction
 			poolId.SetDirection(CONNECTION_DRECT_IN)
 			conn := NewDirectConnection(imp, ds.Id(), info.HostId, *poolId, &ds.CleanChan)
 			conn.Conn = sock
@@ -69,6 +69,8 @@ func (ds *DirectService) Start() error {
 }
 
 func (ds *DirectService) CreateConnection(sender impl.Sender, sock net.Conn, poolId types.PoolId) error {
+	// client reset direction
+	poolId.SetDirection(CONNECTION_DRECT_OUT)
 	err := ds.BaseConnectionService.CreateConnection(sender, sock, poolId)
 	if err != nil {
 		return err

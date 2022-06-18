@@ -72,12 +72,11 @@ func (bc *BaseConnection) TargetId() string {
 }
 
 func (bc *BaseConnection) Dial() error {
-	bc.poolId.SetDirection(CONNECTION_DRECT_OUT)
 	bc.impl.Dial()
 	return nil
 }
 func (bc *BaseConnection) Response() error {
-	bc.poolId.SetDirection(CONNECTION_DRECT_IN)
+	logrus.Debug("base connection response")
 	bc.impl.Response()
 	return nil
 }

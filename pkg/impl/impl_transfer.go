@@ -26,6 +26,11 @@ type FileInfo struct {
 	Name       string
 	Size       int64
 	OptionType int32
+	Ready      bool
+}
+
+type TransferStatus struct {
+	Status int32
 }
 
 type Transfer struct {
@@ -59,61 +64,122 @@ func (tr *Transfer) Code() int32 {
 	return types.APP_TYPE_TRANSFER
 }
 
+func (tr *Transfer) sendHeader() (FileInfo, error) {
+	info := FileInfo{
+		Name:       tr.FilePath,
+		OptionType: TYPE_DOWNLOAD,
+	}
+	if tr.Upload {
+		fInfo, err := os.Stat(tr.FilePath)
+		if err != nil {
+			logrus.Error(err)
+			return info, err
+		}
+		info.OptionType = TYPE_UPLOAD
+		info.Size = fInfo.Size()
+		info.Name = filepath.Base(tr.FilePath)
+		info.Ready = true
+	}
+	err := gob.NewEncoder(tr.Conn()).Encode(info)
+	if err != nil {
+		return info, err
+	}
+	logrus.Warn("send ping")
+	err = gob.NewDecoder(tr.Conn()).Decode(&info)
+	if err != nil {
+		return info, err
+	}
+	logrus.Warn("send pong")
+	return info, nil
+}
+
+func (tr *Transfer) recvHeader(conn net.Conn) (FileInfo, error) {
+	info := FileInfo{}
+	err := gob.NewDecoder(conn).Decode(&info)
+	if err != nil {
+		logrus.Error(err)
+		return info, err
+	}
+	logrus.Warn("recv ping")
+	if info.OptionType == TYPE_DOWNLOAD {
+		fInfo, err := os.Stat(tr.FilePath)
+		if err != nil {
+			logrus.Error(err)
+			return info, err
+		}
+		info.Size = fInfo.Size()
+		info.Ready = true
+	}
+	err = gob.NewEncoder(conn).Encode(&info)
+	if err != nil {
+		logrus.Error(err)
+		return info, err
+	}
+	logrus.Warn("recv pong")
+	return info, nil
+}
+func (tr *Transfer) doResponse(s net.Conn) error {
+	// get file header
+	logrus.Debug("start transfer response get file header")
+	info, err := tr.recvHeader(s)
+	if err != nil {
+		return err
+	}
+	if !info.Ready {
+		return fmt.Errorf("remote not ready")
+	}
+	logrus.Debug("start transfer response get file header ok")
+	switch info.OptionType {
+	case TYPE_DOWNLOAD:
+		logrus.Debug("response download")
+		file, err := os.Open(tr.FilePath)
+		if err != nil {
+			logrus.Error(err)
+			return err
+		}
+		defer file.Close()
+		bar := progressbar.DefaultBytes(
+			info.Size,
+			"update",
+		)
+		_, err = io.Copy(io.MultiWriter(s, bar), file)
+		return err
+	case TYPE_UPLOAD:
+		logrus.Debug("response upload")
+		file, err := os.Create(filepath.Join(os.Getenv("HOME"), "Downloads", info.Name))
+		if err != nil {
+			logrus.Error(err)
+			return err
+		}
+		logrus.Debug("file created")
+		defer file.Close()
+		bar := progressbar.DefaultBytes(
+			info.Size,
+			"download",
+		)
+		logrus.Debug("start copy io")
+		n, err := io.Copy(io.MultiWriter(file, bar), s)
+
+		logrus.Debug("stop response upload ", err, n)
+		return err
+	default:
+		logrus.Error("invalid file option type for ", info.OptionType)
+	}
+	// progress
+	return nil
+
+}
+
 func (tr *Transfer) Response() error {
-	tr.lock.Lock()
 	s, c := net.Pipe()
+	tr.lock.Lock()
 	tr.BaseImpl.conn = &c
 	tr.lock.Unlock()
 	go func() {
-		// get file header
-		var info FileInfo
-		err := gob.NewDecoder(s).Decode(&info)
+		err := tr.doResponse(s)
 		if err != nil {
-			logrus.Error(err)
-			return
+			logrus.Error("do response ", err)
 		}
-		switch info.OptionType {
-		case TYPE_DOWNLOAD:
-			fInfo, err := os.Stat(tr.FilePath)
-			if err != nil {
-				logrus.Error(err)
-				return
-			}
-			info.Size = fInfo.Size()
-			err = gob.NewEncoder(s).Encode(&info)
-			if err != nil {
-				logrus.Error(err)
-				return
-			}
-			file, err := os.Open(tr.FilePath)
-			if err != nil {
-				logrus.Error(err)
-				return
-			}
-			defer file.Close()
-
-			bar := progressbar.DefaultBytes(
-				fInfo.Size(),
-				"update",
-			)
-			io.Copy(io.MultiWriter(s, bar), file)
-		case TYPE_UPLOAD:
-			file, err := os.Create(filepath.Join(os.Getenv("HOME"), "Downloads", info.Name))
-			if err != nil {
-				logrus.Error(err)
-				return
-			}
-			defer file.Close()
-			bar := progressbar.DefaultBytes(
-				info.Size,
-				"download",
-			)
-			io.Copy(io.MultiWriter(file, bar), s)
-		default:
-			logrus.Error("invalid file option type for ", info.OptionType)
-		}
-		// progress
-
 	}()
 	return nil
 }
@@ -126,50 +192,31 @@ func (tr *Transfer) Dial() error {
 func (tr *Transfer) Wait() error {
 	logrus.Warn("waitting process")
 	if tr.FilePath != "" {
+		info, err := tr.sendHeader()
+		if err != nil {
+			return err
+		}
+		if !info.Ready {
+			return fmt.Errorf("remote not ready")
+		}
 		if tr.Upload { // upload case
 			logrus.Warn("uploading ", tr.FilePath, " ...")
-			fInfo, err := os.Stat(tr.FilePath)
-			if err != nil {
-				logrus.Error(err)
-				return err
-			}
 			file, err := os.Open(tr.FilePath)
 			if err != nil {
 				return err
 			}
 			defer file.Close()
-			info := FileInfo{
-				Name:       filepath.Base(tr.FilePath),
-				Size:       fInfo.Size(),
-				OptionType: TYPE_UPLOAD,
-			}
-
-			err = gob.NewEncoder(tr.Conn()).Encode(info)
-			if err != nil {
-				return err
-			}
-
 			bar := progressbar.DefaultBytes(
-				fInfo.Size(),
+				info.Size,
 				"upload",
 			)
-			_, err = io.Copy(io.MultiWriter(tr.Conn(), bar), file)
+			n, err := io.Copy(io.MultiWriter(tr.Conn(), bar), file)
+			logrus.Debug("stop process upload ", err, n)
+			// time.Sleep(5 * time.Second)
+
 			return err
 		} else {
 			logrus.Warn("downloading ", tr.FilePath, " ...")
-			info := FileInfo{
-				Name:       filepath.Base(tr.FilePath),
-				OptionType: TYPE_UPLOAD,
-			}
-			err := gob.NewEncoder(tr.Conn()).Encode(info)
-			if err != nil {
-				return err
-			}
-			err = gob.NewDecoder(tr.Conn()).Decode(&info)
-			if err != nil {
-				return err
-			}
-
 			file, err := os.Create(filepath.Join(os.Getenv("HOME"), "Downloads", info.Name))
 			if err != nil {
 				logrus.Error(err)
@@ -180,8 +227,8 @@ func (tr *Transfer) Wait() error {
 				info.Size,
 				"download",
 			)
-			_, err = io.Copy(io.MultiWriter(file, bar), tr.Conn())
-			return err
+			io.Copy(io.MultiWriter(file, bar), tr.Conn())
+			return nil
 		}
 	}
 	downUrl, _ := utils.MakeRandomStr(10)
@@ -226,6 +273,7 @@ func (tr *Transfer) Wait() error {
 }
 
 func (tr *Transfer) Close() {
+	tr.BaseImpl.Close()
 	if tr.server != nil {
 		tr.server.Close()
 	}

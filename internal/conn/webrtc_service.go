@@ -17,16 +17,16 @@ import (
 
 type WebRTCService struct {
 	BaseConnectionService
-	sigPull             chan *types.SignalingInfo
-	sigPush             chan *types.SignalingInfo
+	sigPull             chan types.SignalingInfo
+	sigPush             chan types.SignalingInfo
 	conf                webrtc.Configuration
 	signalingServerAddr string
 }
 
 func NewWebRTCService(id, signalingServerAddr string, conf webrtc.Configuration) *WebRTCService {
 	return &WebRTCService{
-		sigPull:               make(chan *types.SignalingInfo, 128),
-		sigPush:               make(chan *types.SignalingInfo, 128),
+		sigPull:               make(chan types.SignalingInfo, 128),
+		sigPush:               make(chan types.SignalingInfo, 128),
 		conf:                  conf,
 		signalingServerAddr:   signalingServerAddr,
 		BaseConnectionService: *NewBaseConnectionService(id),
@@ -42,6 +42,7 @@ func (wss *WebRTCService) Start() error {
 }
 
 func (wss *WebRTCService) CreateConnection(sender impl.Sender, sock net.Conn, poolId types.PoolId) error {
+	poolId.SetDirection(CONNECTION_DRECT_OUT)
 	err := wss.BaseConnectionService.CreateConnection(sender, sock, poolId)
 	if err != nil {
 		return err
@@ -60,7 +61,11 @@ func (wss *WebRTCService) CreateConnection(sender impl.Sender, sock net.Conn, po
 		return err
 	}
 	logrus.Warn("rtc add pair")
-	info := pair.Offer(string(iface.HostId()), sender.Type)
+	info, err := pair.Offer(string(iface.HostId()), sender.Type)
+	if err != nil {
+		return err
+	}
+	logrus.Warn("ready to put piar ", pair.poolId.String())
 	err = wss.AddPair(pair)
 	if err != nil {
 		return err
@@ -72,6 +77,8 @@ func (wss *WebRTCService) CreateConnection(sender impl.Sender, sock net.Conn, po
 		return err
 	}
 	pair.PeerConnection.OnICECandidate(func(c *webrtc.ICECandidate) {
+		// set condiate pool it direction to in for server
+		info.Id.SetDirection(CONNECTION_DRECT_IN)
 		wss.SignalCandidate(info, iface.HostId(), c)
 	})
 	if !sender.Detach {
@@ -92,27 +99,20 @@ func (wss *WebRTCService) isValidSignalingInfo(input types.SignalingInfo) bool {
 	if input.Target == "" {
 		return false
 	}
-	// if input.Source == input.Target {
-	// 	return false
-	// }
-	logrus.Debugf(" id %d source %s target %s flag %d", input.Id, input.Source, input.Target, input.Flag)
 	return true
 }
 
-func (wss *WebRTCService) push(info *types.SignalingInfo) error {
-	if info == nil {
-		logrus.Warn("nothing to push")
-		return nil
-	}
-	if !wss.isValidSignalingInfo(*info) {
+func (wss *WebRTCService) push(info types.SignalingInfo) error {
+	if !wss.isValidSignalingInfo(info) {
 		return fmt.Errorf("invalid SignalingInfo")
 	}
 	wss.sigPush <- info
 	return nil
 }
 
-func (wss *WebRTCService) ServeOfferInfo(info *types.SignalingInfo) {
-	if info == nil {
+func (wss *WebRTCService) ServeOfferInfo(info types.SignalingInfo) {
+	if !wss.isValidSignalingInfo(info) {
+		logrus.Error("invalid SignalingInfo")
 		return
 	}
 	cvt := impl.Sender{
@@ -124,7 +124,7 @@ func (wss *WebRTCService) ServeOfferInfo(info *types.SignalingInfo) {
 		return
 	}
 	iface.SetHostId(info.Source)
-
+	// set candidate pool id direction to out for self(server)
 	info.Id.SetDirection(CONNECTION_DRECT_IN)
 	pair := NewWebRTC(wss.conf, iface, wss.id, info.Source, info.Id, &wss.CleanChan)
 	err := wss.AddPair(pair)
@@ -139,18 +139,22 @@ func (wss *WebRTCService) ServeOfferInfo(info *types.SignalingInfo) {
 	}
 	pair.PeerConnection.OnICECandidate(func(c *webrtc.ICECandidate) {
 		logrus.Debug("send candidate")
+		// set candidate pool id direction to out for client
+		info.Id.SetDirection(CONNECTION_DRECT_OUT)
 		wss.SignalCandidate(info, info.Source, c)
 	})
-
-	awser := pair.Anwser(info)
-	if awser == nil {
+	// set candidate pool id direction to out for client
+	info.Id.SetDirection(CONNECTION_DRECT_OUT)
+	awser, err := pair.Anwser(info)
+	if err != nil {
 		logrus.Error("pair create a nil anwser")
 		return
+
 	}
 	wss.push(awser)
 }
 
-func (wss *WebRTCService) ServePush(info *types.SignalingInfo) {
+func (wss *WebRTCService) ServePush(info types.SignalingInfo) {
 	buf := bytes.NewBuffer(nil)
 	if err := gob.NewEncoder(buf).Encode(info); err != nil {
 		logrus.Error(err)
@@ -168,8 +172,7 @@ func (wss *WebRTCService) ServePush(info *types.SignalingInfo) {
 	}
 }
 
-func (wss *WebRTCService) ServeCandidateInfo(info *types.SignalingInfo) {
-	logrus.Debug("add candidate")
+func (wss *WebRTCService) ServeCandidateInfo(info types.SignalingInfo) {
 	pair := wss.GetPair(info.Id.String())
 	if pair == nil {
 		logrus.Warn("pair ", info.Id.String(), " was empty, cannot serve candidate")
@@ -178,7 +181,8 @@ func (wss *WebRTCService) ServeCandidateInfo(info *types.SignalingInfo) {
 	pair.(*WebRTC).AddCandidate(&webrtc.ICECandidateInit{Candidate: string(info.Candidate)}, info.Id)
 }
 
-func (wss *WebRTCService) ServeAnwserInfo(info *types.SignalingInfo) {
+func (wss *WebRTCService) ServeAnwserInfo(info types.SignalingInfo) {
+	// set candidate pool id direction to out for self(client)
 	info.Id.SetDirection(CONNECTION_DRECT_OUT)
 	pair := wss.GetPair(info.Id.String()).(*WebRTC)
 	if pair == nil {
@@ -211,7 +215,7 @@ func (wss *WebRTCService) ServeSignaling() {
 				}
 			}
 			res.Body.Close()
-			wss.sigPull <- &info
+			wss.sigPull <- info
 		}
 	}()
 
@@ -222,10 +226,13 @@ func (wss *WebRTCService) ServeSignaling() {
 		case info := <-wss.sigPull:
 			switch info.Flag {
 			case types.SIG_TYPE_OFFER:
+				// server side
 				go wss.ServeOfferInfo(info)
 			case types.SIG_TYPE_CANDIDATE:
+				// common side
 				go wss.ServeCandidateInfo(info)
 			case types.SIG_TYPE_ANSWER:
+				// client side
 				go wss.ServeAnwserInfo(info)
 			case types.SIG_TYPE_UNKNOWN:
 				logrus.Error("unknow signaling type")
@@ -234,14 +241,14 @@ func (wss *WebRTCService) ServeSignaling() {
 	}
 }
 
-func (wss *WebRTCService) SignalCandidate(info *types.SignalingInfo, target string, c *webrtc.ICECandidate) {
+func (wss *WebRTCService) SignalCandidate(info types.SignalingInfo, target string, c *webrtc.ICECandidate) {
 	if c == nil {
 		return
 	}
 	if wss.GetPair(info.Id.String()) == nil {
 		return
 	}
-	cadInfo := &types.SignalingInfo{
+	cadInfo := types.SignalingInfo{
 		Flag:              types.SIG_TYPE_CANDIDATE,
 		Source:            wss.id,
 		Candidate:         []byte(c.ToJSON().Candidate),
