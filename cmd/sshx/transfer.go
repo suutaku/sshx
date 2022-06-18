@@ -8,16 +8,18 @@ import (
 )
 
 func cmdUpload(cmd *cli.Cmd) {
-	cmd.Spec = "[-t] [-f]"
+	cmd.Spec = "[-t] [-f] [-q]"
 	hostId := cmd.StringOpt("t target", "", "target device id")
 	filePath := cmd.StringOpt("f file", "", "path of file to upload")
+	showQR := cmd.BoolOpt("q qrcode", false, "show QR code (upload from or download to mobile device)")
 	cmd.Action = func() {
 
 		if hostId == nil || *hostId == "" {
 			*hostId = "127.0.0.1"
 		}
 
-		imp := impl.NewTransfer(*hostId, *filePath, true)
+		imp := impl.NewTransfer(*hostId, *filePath, true, *showQR)
+		imp.Init()
 		err := imp.Preper()
 		if err != nil {
 			logrus.Error(err)
@@ -39,20 +41,42 @@ func cmdUpload(cmd *cli.Cmd) {
 
 }
 func cmdDownload(cmd *cli.Cmd) {
-	cmd.Spec = "TARGETID FILEPATH"
-	hostId := cmd.StringArg("TARGETID", "", "target device id")
-	filePath := cmd.StringArg("FILEPATH", "", "path of file to download")
+	cmd.Spec = "[-t] [-f] [-q]"
+	hostId := cmd.StringOpt("t target", "", "target device id")
+	filePath := cmd.StringOpt("f file", "", "path of file to download")
+	showQR := cmd.BoolOpt("q qrcode", false, "show QR code (upload from or download to mobile device)")
 	cmd.Action = func() {
 		if hostId == nil || *hostId == "" {
+			*hostId = "127.0.0.1"
+		}
 
+		imp := impl.NewTransfer(*hostId, *filePath, false, *showQR)
+		if imp == nil {
+			logrus.Error("Please input a remote file path when using download command")
+			return
 		}
-		if filePath == nil || *filePath == "" {
-			logrus.Error("please set a file path")
+		imp.Init()
+		err := imp.Preper()
+		if err != nil {
+			logrus.Error(err)
+			return
 		}
+		sender := impl.NewSender(imp, types.OPTION_TYPE_UP)
+		conn, err := sender.Send()
+		if err != nil {
+			logrus.Error(err)
+			return
+		}
+		imp.SetConn(conn)
+		err = imp.Wait()
+		if err != nil {
+			logrus.Error(err)
+		}
+		imp.Close()
 	}
 }
 
 func cmdTransfer(cmd *cli.Cmd) {
 	cmd.Command("upload", "upload file to target device", cmdUpload)
-	cmd.Command("stop", "download file from target device", cmdDownload)
+	cmd.Command("download", "download file from target device", cmdDownload)
 }
