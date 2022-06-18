@@ -23,6 +23,7 @@ type Connection interface {
 	TargetId() string
 	Dial() error
 	Response() error
+	Direction() int32
 }
 
 type BaseConnection struct {
@@ -31,9 +32,10 @@ type BaseConnection struct {
 	targetId string
 	poolId   types.PoolId
 	Exit     chan error
+	Direct   int32
 }
 
-func NewBaseConnection(impl impl.Impl, nodeId, targetId string, poolId types.PoolId) *BaseConnection {
+func NewBaseConnection(impl impl.Impl, nodeId, targetId string, poolId types.PoolId, direct int32) *BaseConnection {
 	impl.Init()
 	ret := &BaseConnection{
 		Exit:     make(chan error, 10),
@@ -46,6 +48,10 @@ func NewBaseConnection(impl impl.Impl, nodeId, targetId string, poolId types.Poo
 		ret.poolId = *types.NewPoolId(time.Now().UnixNano())
 	}
 	return ret
+}
+
+func (bc *BaseConnection) Direction() int32 {
+	return bc.Direct
 }
 
 func (bc *BaseConnection) Close() {

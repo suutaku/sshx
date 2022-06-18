@@ -17,9 +17,9 @@ type DirectConnection struct {
 	CleanChan *chan string
 }
 
-func NewDirectConnection(impl impl.Impl, nodeId string, targetId string, poolId types.PoolId, cleanChan *chan string) *DirectConnection {
+func NewDirectConnection(impl impl.Impl, nodeId string, targetId string, poolId types.PoolId, direct int32, cleanChan *chan string) *DirectConnection {
 	ret := &DirectConnection{
-		BaseConnection: *NewBaseConnection(impl, nodeId, targetId, poolId),
+		BaseConnection: *NewBaseConnection(impl, nodeId, targetId, poolId, direct),
 		CleanChan:      cleanChan,
 	}
 	ret.CleanChan = cleanChan
@@ -53,7 +53,7 @@ func (dc *DirectConnection) Dial() error {
 	dc.Conn = conn
 	go func() {
 		utils.Pipe(&implConn, &dc.Conn)
-		*dc.CleanChan <- dc.PoolId().String()
+		*dc.CleanChan <- dc.PoolId().String(dc.Direction())
 	}()
 	return nil
 }
@@ -66,7 +66,7 @@ func (dc *DirectConnection) Response() error {
 	implConn := dc.impl.Conn() //connection from dial ssh
 	go func() {
 		utils.Pipe(&implConn, &dc.Conn)
-		*dc.CleanChan <- dc.poolId.String()
+		*dc.CleanChan <- dc.poolId.String(dc.Direction())
 	}()
 
 	return nil

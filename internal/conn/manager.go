@@ -185,22 +185,22 @@ func (stm *StatManager) AddPair(pair Connection) error {
 	if pair == nil {
 		return fmt.Errorf("pair was empty")
 	}
-	oldPair := stm.cpPool[pair.PoolId().String()]
+	oldPair := stm.cpPool[pair.PoolId().String(pair.Direction())]
 	if oldPair != nil {
-		return fmt.Errorf("pair already exist, with %s", oldPair.PoolId().String())
+		return fmt.Errorf("pair already exist, with %s", oldPair.PoolId().String(pair.Direction()))
 	}
-	stm.cpPool[pair.PoolId().String()] = pair
+	stm.cpPool[pair.PoolId().String(pair.Direction())] = pair
 	stat := types.Status{
-		PairId:    pair.PoolId().String(),
+		PairId:    pair.PoolId().String(pair.Direction()),
 		TargetId:  pair.TargetId(),
 		ImplType:  pair.GetImpl().Code(),
 		StartTime: time.Now(),
 	}
 
 	if pair.GetImpl().ParentId() != "" {
-		logrus.Debug("add child ", pair.PoolId().String(), " to ", pair.GetImpl().ParentId())
+		logrus.Debug("add child ", pair.PoolId().String(pair.Direction()), " to ", pair.GetImpl().ParentId())
 		stat.ParentPairId = pair.GetImpl().ParentId()
-		stm.addChild(pair.GetImpl().ParentId(), pair.PoolId().String())
+		stm.addChild(pair.GetImpl().ParentId(), pair.PoolId().String(pair.Direction()))
 	}
 	stm.putStat(stat)
 	logrus.Debug("put pair on stat ", impl.GetImplName(pair.GetImpl().Code()), " with pair id ", stat.PairId)

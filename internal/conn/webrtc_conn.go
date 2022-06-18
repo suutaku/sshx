@@ -28,19 +28,19 @@ type WebRTC struct {
 	stmChan *chan string
 }
 
-func NewWebRTC(conf webrtc.Configuration, impl impl.Impl, nodeId string, targetId string, poolId types.PoolId, stmChan *chan string) *WebRTC {
+func NewWebRTC(conf webrtc.Configuration, impl impl.Impl, nodeId string, targetId string, poolId types.PoolId, direct int32, stmChan *chan string) *WebRTC {
 	pc, err := webrtc.NewPeerConnection(conf)
 	if err != nil {
 		logrus.Error("rtc error:", err)
 		return nil
 	}
-	impl.SetPairId(poolId.String())
 	ret := &WebRTC{
 		PeerConnection: pc,
 		conf:           conf,
-		BaseConnection: *NewBaseConnection(impl, nodeId, targetId, poolId),
+		BaseConnection: *NewBaseConnection(impl, nodeId, targetId, poolId, direct),
 		stmChan:        stmChan,
 	}
+	ret.impl.SetPairId(poolId.String(ret.Direction()))
 	return ret
 }
 
@@ -161,7 +161,7 @@ func (pair *WebRTC) Close() {
 	logrus.Debug("close pair")
 	if pair.PeerConnection != nil {
 		pair.PeerConnection.Close()
-		(*pair.stmChan) <- pair.poolId.String()
+		(*pair.stmChan) <- pair.poolId.String(pair.Direction())
 	}
 	if pair.impl != nil {
 		pair.impl.Close()
@@ -234,7 +234,7 @@ func (pair *WebRTC) MakeConnection(info types.SignalingInfo) error {
 		Type: webrtc.SDPTypeAnswer,
 		SDP:  info.SDP,
 	}); err != nil {
-		logrus.Error("make connection rtc error: ", pair.poolId.String(), " ", err)
+		logrus.Error("make connection rtc error: ", pair.poolId.String(pair.Direction()), " ", err)
 		pair.Close()
 		return err
 	}
@@ -245,7 +245,7 @@ func (pair *WebRTC) MakeConnection(info types.SignalingInfo) error {
 func (pair *WebRTC) AddCandidate(ca *webrtc.ICECandidateInit, id types.PoolId) error {
 	if pair != nil && id.Raw() == pair.PoolId().Raw() {
 		if !pair.IsRemoteDescriptionSet() {
-			logrus.Warn("waiting remote description be set ", pair.poolId.String())
+			logrus.Warn("waiting remote description be set ", pair.poolId.String(pair.Direction()))
 			return fmt.Errorf("remote description NOT set")
 		}
 		err := pair.PeerConnection.AddICECandidate(*ca)

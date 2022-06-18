@@ -54,8 +54,7 @@ func (ds *DirectService) Start() error {
 			imp := impl.GetImpl(info.ImplCode)
 			poolId := types.NewPoolId(info.Id)
 			// server reset direction
-			poolId.SetDirection(CONNECTION_DRECT_IN)
-			conn := NewDirectConnection(imp, ds.Id(), info.HostId, *poolId, &ds.CleanChan)
+			conn := NewDirectConnection(imp, ds.Id(), info.HostId, *poolId, CONNECTION_DRECT_IN, &ds.CleanChan)
 			conn.Conn = sock
 			ds.AddPair(conn)
 			err = conn.Response()
@@ -70,7 +69,6 @@ func (ds *DirectService) Start() error {
 
 func (ds *DirectService) CreateConnection(sender impl.Sender, sock net.Conn, poolId types.PoolId) error {
 	// client reset direction
-	poolId.SetDirection(CONNECTION_DRECT_OUT)
 	err := ds.BaseConnectionService.CreateConnection(sender, sock, poolId)
 	if err != nil {
 		return err
@@ -83,7 +81,7 @@ func (ds *DirectService) CreateConnection(sender impl.Sender, sock net.Conn, poo
 	if !sender.Detach {
 		iface.SetConn(sock)
 	}
-	pair := NewDirectConnection(iface, ds.Id(), iface.HostId(), poolId, &ds.CleanChan)
+	pair := NewDirectConnection(iface, ds.Id(), iface.HostId(), poolId, CONNECTION_DRECT_OUT, &ds.CleanChan)
 	err = pair.Dial()
 	if err != nil {
 		return err
@@ -95,7 +93,7 @@ func (ds *DirectService) CreateConnection(sender impl.Sender, sock net.Conn, poo
 	}
 	if !sender.Detach {
 		// fill pair id and send back the 'sender'
-		sender.PairId = []byte(pair.poolId.String())
+		sender.PairId = []byte(pair.poolId.String(pair.Direction()))
 		go pair.ResponseTCP(sender)
 	}
 	return nil

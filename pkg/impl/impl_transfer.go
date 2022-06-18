@@ -77,7 +77,6 @@ func (tr *Transfer) Code() int32 {
 }
 
 func (tr *Transfer) sendHeader() (FileInfo, error) {
-	logrus.Warn("send header ", tr.FilePath)
 	info := FileInfo{
 		Name:       tr.FilePath,
 		OptionType: TYPE_DOWNLOAD,
@@ -97,12 +96,12 @@ func (tr *Transfer) sendHeader() (FileInfo, error) {
 	if err != nil {
 		return info, err
 	}
-	logrus.Warn("send ping")
+
 	err = gob.NewDecoder(tr.Conn()).Decode(&info)
 	if err != nil {
 		return info, err
 	}
-	logrus.Warn("send pong")
+
 	return info, nil
 }
 
@@ -113,7 +112,7 @@ func (tr *Transfer) recvHeader(conn net.Conn) (FileInfo, error) {
 		logrus.Error(err)
 		return info, err
 	}
-	logrus.Warn("recv ping ", info.Name)
+
 	if info.OptionType == TYPE_DOWNLOAD {
 		tr.FilePath = info.Name
 		fInfo, err := os.Stat(tr.FilePath)
@@ -129,7 +128,7 @@ func (tr *Transfer) recvHeader(conn net.Conn) (FileInfo, error) {
 		logrus.Error(err)
 		return info, err
 	}
-	logrus.Warn("recv pong")
+
 	return info, nil
 }
 func (tr *Transfer) doResponse(s net.Conn) error {
@@ -214,7 +213,7 @@ func (tr *Transfer) Wait() error {
 			return fmt.Errorf("remote not ready")
 		}
 		if tr.Upload { // upload case
-			logrus.Warn("uploading ", tr.FilePath, " ...")
+
 			file, err := os.Open(tr.FilePath)
 			if err != nil {
 				return err
@@ -230,7 +229,7 @@ func (tr *Transfer) Wait() error {
 
 			return err
 		} else {
-			logrus.Warn("downloading ", tr.FilePath, " ...")
+
 			file, err := os.Create(filepath.Join(os.Getenv("HOME"), "Downloads", filepath.Base(info.Name)))
 			if err != nil {
 				logrus.Error(err)
@@ -253,12 +252,9 @@ func (tr *Transfer) Wait() error {
 		entryUrl, _ = utils.MakeRandomStr(10)
 		entryType = TYPE_UPLOAD
 	}
-	entryUrl = "/" + entryUrl
-	tr.ServerAddr = fmt.Sprintf("http://%s:%d%s", utils.GetLocalIP(), tr.ServerPort, entryUrl)
+	tr.ServerAddr = fmt.Sprintf("http://%s:%d/%s", utils.GetLocalIP(), tr.ServerPort, entryUrl)
+	logrus.Debug(tr.ServerAddr)
 	r := mux.NewRouter()
-
-	// logrus.Warn(downUrl, " ", upUrl, " ", entryUrl)
-
 	r.HandleFunc("/"+entryUrl, func(w http.ResponseWriter, r *http.Request) {
 		page := `<html>
 		<form action="` + upUrl + `" method="post" enctype="multipart/form-data">
@@ -268,7 +264,7 @@ func (tr *Transfer) Wait() error {
 		w.Write([]byte(page))
 	})
 	r.HandleFunc("/"+downUrl, func(w http.ResponseWriter, r *http.Request) {
-		logrus.Warn("download request come")
+
 		tmpFilePath := path.Join(tr.TmpPath, path.Base(tr.FilePath))
 
 		finfo, err := os.Stat(tmpFilePath)

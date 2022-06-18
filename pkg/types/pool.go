@@ -15,12 +15,8 @@ func NewPoolId(id int64) *PoolId {
 	}
 }
 
-func (pd *PoolId) SetDirection(dire int32) {
-	pd.Direction = dire
-}
-
-func (pd *PoolId) String() string {
-	return fmt.Sprintf("conn_%d_%d", pd.Value, pd.Direction)
+func (pd *PoolId) String(direct int32) string {
+	return fmt.Sprintf("conn_%d_%d", pd.Value, direct)
 }
 
 func (pd *PoolId) Raw() int64 {
