@@ -35,7 +35,9 @@ func (dm *DManager) Get(id string) chan types.SignalingInfo {
 func (dm *DManager) Clean(id string) {
 	dm.mu.Lock()
 	defer dm.mu.Unlock()
-	close(dm.datas[id])
+	if dm.datas[id] != nil {
+		close(dm.datas[id])
+	}
 	delete(dm.datas, id)
 	delete(dm.alive, id)
 }
