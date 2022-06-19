@@ -26,10 +26,10 @@ type WebRTC struct {
 	BaseConnection
 	*webrtc.PeerConnection
 	conf    webrtc.Configuration
-	stmChan *chan string
+	stmChan *chan CleanRequest
 }
 
-func NewWebRTC(conf webrtc.Configuration, impl impl.Impl, nodeId string, targetId string, poolId types.PoolId, direct int32, stmChan *chan string) *WebRTC {
+func NewWebRTC(conf webrtc.Configuration, impl impl.Impl, nodeId string, targetId string, poolId types.PoolId, direct int32, stmChan *chan CleanRequest) *WebRTC {
 	pc, err := webrtc.NewPeerConnection(conf)
 	if err != nil {
 		logrus.Error("rtc error:", err)
@@ -169,13 +169,10 @@ func (pair *WebRTC) Dial() error {
 	return nil
 }
 func (pair *WebRTC) Close() {
-	logrus.Debug("close pair")
 	if pair.PeerConnection != nil {
 		pair.PeerConnection.Close()
-		(*pair.stmChan) <- pair.poolId.String(pair.Direction())
-	}
-	if pair.impl != nil {
 		pair.impl.Close()
+		(*pair.stmChan) <- CleanRequest{pair.poolId.String(pair.Direction()), pair.Name()}
 	}
 }
 

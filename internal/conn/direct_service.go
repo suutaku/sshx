@@ -33,7 +33,6 @@ func (ds *DirectService) Start() error {
 	listenner, err := net.Listen("tcp", fmt.Sprintf(":%d", directPort))
 	if err != nil {
 		logrus.Error(err)
-		panic(err)
 	}
 
 	go func() {
@@ -96,5 +95,14 @@ func (ds *DirectService) CreateConnection(sender impl.Sender, sock net.Conn, poo
 		sender.PairId = []byte(pair.poolId.String(pair.Direction()))
 		go pair.ResponseTCP(sender)
 	}
+	return nil
+}
+
+func (ds *DirectService) DestroyConnection(tmp impl.Sender) error {
+	pair := ds.GetPair(string(tmp.PairId))
+	if pair == nil {
+		return fmt.Errorf("cannot get pair for %s", string(tmp.PairId))
+	}
+	ds.RemovePair(CleanRequest{string(tmp.PairId), (&DirectConnection{}).Name()})
 	return nil
 }

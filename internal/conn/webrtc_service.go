@@ -49,7 +49,6 @@ func (wss *WebRTCService) CreateConnection(sender impl.Sender, sock net.Conn, po
 	iface := sender.GetImpl()
 	if iface == nil {
 		return fmt.Errorf("unknown impl")
-
 	}
 	if !sender.Detach {
 		iface.SetConn(sock)
@@ -64,17 +63,6 @@ func (wss *WebRTCService) CreateConnection(sender impl.Sender, sock net.Conn, po
 	if err != nil {
 		return err
 	}
-	logrus.Warn("ready to put piar ", pair.poolId.String(pair.Direction()))
-	err = wss.AddPair(pair)
-	if err != nil {
-		return err
-	}
-
-	err = wss.push(info)
-	if err != nil {
-		sock.Close()
-		return err
-	}
 	pair.PeerConnection.OnICECandidate(func(c *webrtc.ICECandidate) {
 		// set condiate pool it direction to in for server
 		if wss.GetPair(info.Id.String(pair.Direction())) == nil {
@@ -87,6 +75,27 @@ func (wss *WebRTCService) CreateConnection(sender impl.Sender, sock net.Conn, po
 		// fill pair id and send back the 'sender'
 		sender.PairId = []byte(info.Id.String(pair.Direction()))
 		go pair.ResponseTCP(sender)
+	}
+	err = wss.push(info)
+	if err != nil {
+		sock.Close()
+		return err
+	}
+	logrus.Warn("ready to put piar ", pair.poolId.String(pair.Direction()))
+	err = wss.AddPair(pair)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (wss *WebRTCService) DestroyConnection(tmp impl.Sender) error {
+	pair := wss.GetPair(string(tmp.PairId))
+	if pair == nil {
+		return fmt.Errorf("cannot get pair for %s", string(tmp.PairId))
+	}
+	if pair.GetImpl().Code() == tmp.GetAppCode() {
+		wss.RemovePair(CleanRequest{string(tmp.PairId), (&WebRTC{}).Name()})
 	}
 	return nil
 }
@@ -134,11 +143,6 @@ func (wss *WebRTCService) ServeOfferInfo(info types.SignalingInfo) {
 		logrus.Error(err)
 		return
 	}
-	err = wss.AddPair(pair)
-	if err != nil {
-		logrus.Error(err)
-		return
-	}
 	pair.PeerConnection.OnICECandidate(func(c *webrtc.ICECandidate) {
 		logrus.Debug("send candidate")
 		// set candidate pool id direction to out for client
@@ -153,6 +157,11 @@ func (wss *WebRTCService) ServeOfferInfo(info types.SignalingInfo) {
 
 	}
 	wss.push(awser)
+	err = wss.AddPair(pair)
+	if err != nil {
+		logrus.Error(err)
+		return
+	}
 }
 
 func (wss *WebRTCService) ServePush(info types.SignalingInfo) {

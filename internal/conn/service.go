@@ -24,17 +24,22 @@ type ConnectionService interface {
 	Id() string
 }
 
+type CleanRequest struct {
+	Key            string
+	ConnectionName string
+}
+
 type BaseConnectionService struct {
 	stm       *StatManager
 	isReady   bool
 	running   bool
-	CleanChan chan string
+	CleanChan chan CleanRequest
 	id        string
 }
 
 func NewBaseConnectionService(id string) *BaseConnectionService {
 	return &BaseConnectionService{
-		CleanChan: make(chan string, 10),
+		CleanChan: make(chan CleanRequest, 10),
 		id:        id,
 	}
 }
@@ -43,7 +48,7 @@ func (base *BaseConnectionService) Id() string {
 	return base.id
 }
 
-func (base *BaseConnectionService) RemovePair(id string) {
+func (base *BaseConnectionService) RemovePair(id CleanRequest) {
 	base.stm.RemovePair(id)
 }
 func (base *BaseConnectionService) AddPair(pair Connection) error {
@@ -78,16 +83,16 @@ func (base *BaseConnectionService) CreateConnection(sender impl.Sender, conn net
 	return nil
 }
 
-func (base *BaseConnectionService) DestroyConnection(tmp impl.Sender) error {
-	pair := base.GetPair(string(tmp.PairId))
-	if pair == nil {
-		return fmt.Errorf("cannot get pair for %s", string(tmp.PairId))
-	}
-	if pair.GetImpl().Code() == tmp.GetAppCode() {
-		base.RemovePair(string(tmp.PairId))
-	}
-	return nil
-}
+// func (base *BaseConnectionService) DestroyConnection(tmp impl.Sender) error {
+// 	pair := base.GetPair(string(tmp.PairId))
+// 	if pair == nil {
+// 		return fmt.Errorf("cannot get pair for %s", string(tmp.PairId))
+// 	}
+// 	if pair.GetImpl().Code() == tmp.GetAppCode() {
+// 		base.RemovePair(string(tmp.PairId))
+// 	}
+// 	return nil
+// }
 
 func (base *BaseConnectionService) AttachConnection(sender impl.Sender, sock net.Conn) error {
 	pair := base.GetPair(string(sender.PairId))

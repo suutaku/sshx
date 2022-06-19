@@ -15,15 +15,14 @@ import (
 type DirectConnection struct {
 	BaseConnection
 	net.Conn
-	CleanChan *chan string
+	CleanChan *chan CleanRequest
 }
 
-func NewDirectConnection(impl impl.Impl, nodeId string, targetId string, poolId types.PoolId, direct int32, cleanChan *chan string) *DirectConnection {
+func NewDirectConnection(impl impl.Impl, nodeId string, targetId string, poolId types.PoolId, direct int32, cleanChan *chan CleanRequest) *DirectConnection {
 	ret := &DirectConnection{
 		BaseConnection: *NewBaseConnection(impl, nodeId, targetId, poolId, direct, impl.Code()),
 		CleanChan:      cleanChan,
 	}
-	ret.CleanChan = cleanChan
 	return ret
 }
 
@@ -63,7 +62,8 @@ func (dc *DirectConnection) Dial() error {
 	dc.Conn = conn
 	go func() {
 		utils.Pipe(&implConn, &dc.Conn)
-		*dc.CleanChan <- dc.PoolId().String(dc.Direction())
+		logrus.Error("direct broken ", dc.Name())
+		*dc.CleanChan <- CleanRequest{dc.PoolId().String(dc.Direction()), dc.Name()}
 	}()
 	return nil
 }
@@ -77,7 +77,8 @@ func (dc *DirectConnection) Response() error {
 	implConn := dc.impl.Conn() //connection from dial ssh
 	go func() {
 		utils.Pipe(&implConn, &dc.Conn)
-		*dc.CleanChan <- dc.poolId.String(dc.Direction())
+		logrus.Error("direct broken ", dc.Name())
+		*dc.CleanChan <- CleanRequest{dc.poolId.String(dc.Direction()), dc.Name()}
 	}()
 
 	return nil

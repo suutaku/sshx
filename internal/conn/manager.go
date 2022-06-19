@@ -2,6 +2,7 @@ package conn
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"reflect"
 	"sync"
@@ -47,24 +48,28 @@ func (cm *ConnectionManager) Stop() {
 }
 
 func (cm *ConnectionManager) CreateConnection(sender impl.Sender, sock net.Conn, poolId types.PoolId) error {
-	errCh := make(chan error, len(cm.css))
 	for i := 0; i < len(cm.css); i++ {
+
 		go func(idx int) {
 			if cm.css[idx].IsReady() {
-				errCh <- cm.css[idx].CreateConnection(sender, sock, poolId)
+				s, c := net.Pipe()
+				err := cm.css[idx].CreateConnection(sender, c, poolId)
+				if err != nil {
+					logrus.Error(err)
+					return
+				}
+				io.Copy(sock, s)
 			}
 		}(i)
-	}
-	count := 0
-	for i := 0; i < len(cm.css); i++ {
-		err := <-errCh
-		if err != nil {
-			logrus.Error(err)
-			count++
-		}
-	}
-	if count == len(cm.css) {
-		return fmt.Errorf("all connection service was not ready")
+		// go func(idx int) {
+		// 	if cm.css[idx].IsReady() {
+		// 		err := cm.css[idx].CreateConnection(sender, sock, poolId)
+		// 		if err != nil {
+		// 			logrus.Error(err)
+		// 			return
+		// 		}
+		// 	}
+		// }(i)
 	}
 	return nil
 }
@@ -157,48 +162,33 @@ func (stm *StatManager) Stat() []types.Status {
 	return stm.getStat()
 }
 
-func (stm *StatManager) RemovePair(id string) {
+func (stm *StatManager) RemovePair(id CleanRequest) {
 	stm.lock.Lock()
 	defer stm.lock.Unlock()
-	children := stm.getChildren(id)
+	children := stm.getChildren(id.Key)
 	logrus.Debug("ready to clear children ", children)
 	// close children
 	for _, v := range children {
-		if stm.cpPool[v] != nil {
+		if stm.cpPool[v] != nil && stm.cpPool[v].Name() == id.ConnectionName {
 			stm.cpPool[v].Close()
 			delete(stm.cpPool, v)
+			stm.removeStat(id.Key)
 		}
-		stm.removeStat(id)
+
 	}
 	// close parent
-	if stm.cpPool[id] != nil {
-		stm.cpPool[id].Close()
-		delete(stm.cpPool, id)
+	if stm.cpPool[id.Key] != nil && stm.cpPool[id.Key].Name() == id.ConnectionName {
+		logrus.Warn("start close ", id)
+		stm.cpPool[id.Key].Close()
+		delete(stm.cpPool, id.Key)
+		stm.removeStat(id.Key)
+		stm.removeParent(id.Key)
 	}
-	stm.removeStat(id)
-	stm.removeParent(id)
 }
 
-func (stm *StatManager) AddPair(pair Connection) error {
-
-	if pair == nil {
-		return fmt.Errorf("pair was empty")
-	}
-	// input connection not ready, and other connection eithre
-	for !pair.IsReady() && stm.cpPool[pair.PoolId().String(pair.Direction())] == nil {
-		logrus.Warnf("watting %s\n", pair.Name())
-		time.Sleep(500 * time.Millisecond)
-	}
-	// input connection ready or other connection on pool, or both,
-	// but we only take the first connection in pool.
-	// so if pool not empty, drop the input connection.
-	oldPair := stm.cpPool[pair.PoolId().String(pair.Direction())]
-	if oldPair != nil {
-		pair.Close()
-		return fmt.Errorf("pair already exist, drop %s", pair.Name())
-	}
-
+func (stm *StatManager) doAddPair(pair Connection) error {
 	stm.cpPool[pair.PoolId().String(pair.Direction())] = pair
+	logrus.Warnf("add pair %s %s successfully\n", pair.PoolId().String(pair.Direction()), pair.Name())
 	stat := types.Status{
 		PairId:    pair.PoolId().String(pair.Direction()),
 		TargetId:  pair.TargetId(),
@@ -213,6 +203,41 @@ func (stm *StatManager) AddPair(pair Connection) error {
 	}
 	stm.putStat(stat)
 	logrus.Debug("put pair on stat ", impl.GetImplName(pair.GetImpl().Code()), " with pair id ", stat.PairId)
+	return nil
+
+}
+
+func (stm *StatManager) AddPair(pair Connection) error {
+
+	if pair == nil {
+		return fmt.Errorf("pair was empty")
+	}
+
+	oldPair := stm.cpPool[pair.PoolId().String(pair.Direction())]
+
+	if oldPair != nil {
+		if oldPair.IsReady() {
+			pair.Close()
+			return fmt.Errorf("pair already exist, drop %s", pair.Name())
+		}
+		// old pair not ready
+		if pair.IsReady() {
+			//replace old pair
+			return stm.doAddPair(pair)
+		}
+		for !oldPair.IsReady() && !pair.IsReady() {
+			logrus.Warnf("watting %s\n", pair.Name())
+			time.Sleep(500 * time.Millisecond)
+		}
+		if oldPair.IsReady() {
+			return fmt.Errorf("pair already exist, drop %s", pair.Name())
+		}
+		if pair.IsReady() {
+			return fmt.Errorf("replace pair from %s to %s ", oldPair.Name(), pair.Name())
+		}
+	} else {
+		return stm.doAddPair(pair)
+	}
 	return nil
 }
 
