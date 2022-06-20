@@ -54,34 +54,42 @@ func (wss *WebRTCService) CreateConnection(sender impl.Sender, sock net.Conn, po
 		iface.SetConn(sock)
 	}
 	pair := NewWebRTC(wss.conf, iface, wss.id, iface.HostId(), poolId, CONNECTION_DRECT_OUT, &wss.CleanChan)
+	if pair == nil {
+		return fmt.Errorf("cannot create pair")
+	}
 	err = pair.Dial()
 	if err != nil {
 		return err
 	}
-	logrus.Warn("rtc add pair")
-	info, err := pair.Offer(string(iface.HostId()), sender.Type)
-	if err != nil {
-		return err
-	}
-	pair.PeerConnection.OnICECandidate(func(c *webrtc.ICECandidate) {
-		// set condiate pool it direction to in for server
-		if wss.GetPair(info.Id.String(pair.Direction())) == nil {
-			return
+	if iface.IsNeedConnect() {
+		logrus.Debug("create connection for ", impl.GetImplName(iface.Code()))
+		info, err := pair.Offer(string(iface.HostId()), sender.Type)
+		if err != nil {
+			return err
 		}
-		info.Id.Direction = pair.Direction()
-		wss.SignalCandidate(info, info.Target, c)
-	})
+		pair.PeerConnection.OnICECandidate(func(c *webrtc.ICECandidate) {
+			// set condiate pool it direction to in for server
+			if wss.GetPair(info.Id.String(pair.Direction())) == nil {
+				return
+			}
+			info.Id.Direction = pair.Direction()
+			wss.SignalCandidate(info, info.Target, c)
+		})
+		err = wss.push(info)
+		if err != nil {
+			sock.Close()
+			return err
+		}
+	} else {
+		logrus.Error("NOT create connection for ", impl.GetImplName(iface.Code()))
+	}
+
 	if !sender.Detach {
 		// fill pair id and send back the 'sender'
-		sender.PairId = []byte(info.Id.String(pair.Direction()))
+		sender.PairId = []byte(poolId.String(pair.Direction()))
 		go pair.ResponseTCP(sender)
 	}
-	err = wss.push(info)
-	if err != nil {
-		sock.Close()
-		return err
-	}
-	logrus.Warn("ready to put piar ", pair.poolId.String(pair.Direction()))
+	logrus.Debug("ready to put piar ", pair.poolId.String(pair.Direction()))
 	err = wss.AddPair(pair)
 	if err != nil {
 		return err
@@ -131,31 +139,30 @@ func (wss *WebRTCService) ServeOfferInfo(info types.SignalingInfo) {
 	}
 	iface := impl.GetImpl(cvt.GetAppCode())
 	if iface == nil {
-		logrus.Warn("unknow impl for IMCODE: ", cvt.GetAppCode())
+		logrus.Error("unknow impl for IMCODE: ", cvt.GetAppCode())
 		return
 	}
 	iface.SetHostId(info.Source)
 	// set candidate pool id direction to out for self(server)
 	pair := NewWebRTC(wss.conf, iface, wss.id, info.Source, info.Id, CONNECTION_DRECT_IN, &wss.CleanChan)
-
+	// set candidate pool id direction to out for client
 	err := pair.Response()
 	if err != nil {
 		logrus.Error(err)
 		return
 	}
+	awser, err := pair.Anwser(info)
+	if err != nil {
+		logrus.Error("pair create a nil anwser")
+		return
+	}
+
 	pair.PeerConnection.OnICECandidate(func(c *webrtc.ICECandidate) {
 		logrus.Debug("send candidate")
 		// set candidate pool id direction to out for client
 		info.Id.Direction = pair.Direction()
 		wss.SignalCandidate(info, info.Source, c)
 	})
-	// set candidate pool id direction to out for client
-	awser, err := pair.Anwser(info)
-	if err != nil {
-		logrus.Error("pair create a nil anwser")
-		return
-
-	}
 	wss.push(awser)
 	err = wss.AddPair(pair)
 	if err != nil {

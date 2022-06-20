@@ -38,6 +38,8 @@ type Impl interface {
 	ParentId() string
 	SetParentId(string)
 	Attach(net.Conn) error
+	NoNeedConnect()
+	IsNeedConnect() bool
 }
 
 var registeddApp = []Impl{
@@ -50,6 +52,7 @@ var registeddApp = []Impl{
 	&STAT{},
 	&Messager{},
 	&Transfer{},
+	&TransferService{},
 }
 
 func GetImpl(code int32) Impl {

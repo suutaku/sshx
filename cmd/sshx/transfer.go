@@ -18,21 +18,22 @@ func cmdUpload(cmd *cli.Cmd) {
 			*hostId = "127.0.0.1"
 		}
 
-		imp := impl.NewTransfer(*hostId, *filePath, true, *showQR)
+		imp := impl.NewTransferService(*hostId, *filePath, true, *showQR)
 		imp.Init()
+		imp.NoNeedConnect()
 		err := imp.Preper()
 		if err != nil {
 			logrus.Error(err)
 			return
 		}
 		sender := impl.NewSender(imp, types.OPTION_TYPE_UP)
-		conn, err := sender.Send()
+		conn, err := sender.SendDetach()
 		if err != nil {
 			logrus.Error(err)
 			return
 		}
 		imp.SetConn(conn)
-		err = imp.Wait()
+		err = imp.Start()
 		if err != nil {
 			logrus.Error(err)
 		}
@@ -50,25 +51,26 @@ func cmdDownload(cmd *cli.Cmd) {
 			*hostId = "127.0.0.1"
 		}
 
-		imp := impl.NewTransfer(*hostId, *filePath, false, *showQR)
+		imp := impl.NewTransferService(*hostId, *filePath, false, *showQR)
 		if imp == nil {
 			logrus.Error("Please input a remote file path when using download command")
 			return
 		}
 		imp.Init()
+		imp.NoNeedConnect()
 		err := imp.Preper()
 		if err != nil {
 			logrus.Error(err)
 			return
 		}
 		sender := impl.NewSender(imp, types.OPTION_TYPE_UP)
-		conn, err := sender.Send()
+		conn, err := sender.SendDetach()
 		if err != nil {
 			logrus.Error(err)
 			return
 		}
 		imp.SetConn(conn)
-		err = imp.Wait()
+		err = imp.Start()
 		if err != nil {
 			logrus.Error(err)
 		}

@@ -35,6 +35,10 @@ func (node *Node) ServeTCP() {
 		case types.OPTION_TYPE_UP:
 			logrus.Debug("up option")
 			impl := tmp.GetImpl()
+			if impl == nil {
+				logrus.Error("unkwon implementation")
+				continue
+			}
 			poolId := types.NewPoolId(time.Now().UnixNano(), impl.Code())
 			err := node.connMgr.CreateConnection(tmp, sock, *poolId)
 			if err != nil {

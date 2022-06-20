@@ -13,7 +13,9 @@ func cmdStopProxy(cmd *cli.Cmd) {
 	cmd.Spec = "PID"
 	pairId := cmd.StringArg("PID", "", "Connection pair id which can found by using status command")
 	cmd.Action = func() {
-		sender := impl.NewSender(&impl.Proxy{}, types.OPTION_TYPE_DOWN)
+		imp := impl.NewProxy(0, "")
+		imp.NoNeedConnect()
+		sender := impl.NewSender(imp, types.OPTION_TYPE_DOWN)
 		sender.PairId = []byte(*pairId)
 		sender.SendDetach()
 	}
@@ -35,6 +37,7 @@ func cmdStartProxy(cmd *cli.Cmd) {
 
 		proxy := impl.NewProxy(int32(*proxyPort), *addr)
 		proxy.Preper()
+		proxy.NoNeedConnect()
 
 		sender := impl.NewSender(proxy, types.OPTION_TYPE_UP)
 		_, err := sender.SendDetach()

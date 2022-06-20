@@ -4,17 +4,13 @@ import (
 	"encoding/gob"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net"
-	"net/http"
 	"os"
-	"path"
 	"path/filepath"
 
-	"github.com/gorilla/mux"
 	"github.com/schollz/progressbar/v3"
 	"github.com/sirupsen/logrus"
-	"github.com/suutaku/go-qrc/pkg/qrc"
-	"github.com/suutaku/sshx/internal/utils"
 	"github.com/suutaku/sshx/pkg/types"
 )
 
@@ -36,40 +32,26 @@ type TransferStatus struct {
 
 type Transfer struct {
 	BaseImpl
-	FilePath   string
-	Upload     bool
-	ServerAddr string
-	ServerPort int32
-	server     *http.Server
-	Progress   chan float32
-	Exit       chan error
-	ShowQR     bool
-	TmpPath    string
+	FilePath string
+	Upload   bool
+	Size     int64
+	FileName string
 }
 
-func NewTransfer(hostId string, filePath string, upload, qr bool) *Transfer {
+func NewTransfer(hostId string, filePath string, upload bool, header *multipart.FileHeader) *Transfer {
+	if filePath == "" && header == nil {
+		return nil
+	}
 	ret := &Transfer{
-		BaseImpl: BaseImpl{
-			HId: hostId,
-		},
+		BaseImpl: *NewBaseImpl(hostId),
 		FilePath: filePath,
 		Upload:   upload,
 	}
-	if (upload && filePath == "") || qr {
-		ret.ShowQR = true
-	}
-	if !upload && filePath == "" {
-		return nil
+	if header != nil {
+		ret.Size = header.Size
+		ret.FileName = header.Filename
 	}
 	return ret
-}
-
-func (tr *Transfer) Init() {
-	tr.Progress = make(chan float32)
-	tr.Exit = make(chan error)
-	tr.ServerPort = 14567
-	f, _ := os.MkdirTemp("", "sshx")
-	tr.TmpPath = f
 }
 
 func (tr *Transfer) Code() int32 {
@@ -82,26 +64,29 @@ func (tr *Transfer) sendHeader() (FileInfo, error) {
 		OptionType: TYPE_DOWNLOAD,
 	}
 	if tr.Upload {
-		fInfo, err := os.Stat(tr.FilePath)
-		if err != nil {
-			logrus.Error(err)
-			return info, err
-		}
 		info.OptionType = TYPE_UPLOAD
-		info.Size = fInfo.Size()
-		info.Name = filepath.Base(tr.FilePath)
+		if tr.Size > 0 && tr.FileName != "" {
+			info.Size = tr.Size
+			info.Name = filepath.Base(tr.FileName)
+		} else {
+			fInfo, err := os.Stat(tr.FilePath)
+			if err != nil {
+				logrus.Error(err)
+				return info, err
+			}
+			info.Size = fInfo.Size()
+			info.Name = filepath.Base(tr.FilePath)
+		}
 		info.Ready = true
 	}
 	err := gob.NewEncoder(tr.Conn()).Encode(info)
 	if err != nil {
 		return info, err
 	}
-
 	err = gob.NewDecoder(tr.Conn()).Decode(&info)
 	if err != nil {
 		return info, err
 	}
-
 	return info, nil
 }
 
@@ -128,12 +113,10 @@ func (tr *Transfer) recvHeader(conn net.Conn) (FileInfo, error) {
 		logrus.Error(err)
 		return info, err
 	}
-
 	return info, nil
 }
 func (tr *Transfer) doResponse(s net.Conn) error {
 	// get file header
-	logrus.Debug("start transfer response get file header")
 	info, err := tr.recvHeader(s)
 	if err != nil {
 		return err
@@ -141,7 +124,6 @@ func (tr *Transfer) doResponse(s net.Conn) error {
 	if !info.Ready {
 		return fmt.Errorf("remote not ready")
 	}
-	logrus.Debug("start transfer response get file header ok")
 	switch info.OptionType {
 	case TYPE_DOWNLOAD:
 		logrus.Debug("response download")
@@ -171,10 +153,7 @@ func (tr *Transfer) doResponse(s net.Conn) error {
 			info.Size,
 			"download",
 		)
-		logrus.Debug("start copy io")
-		n, err := io.Copy(io.MultiWriter(file, bar), s)
-
-		logrus.Debug("stop response upload ", err, n)
+		_, err = io.Copy(io.MultiWriter(file, bar), s)
 		return err
 	default:
 		logrus.Error("invalid file option type for ", info.OptionType)
@@ -198,186 +177,59 @@ func (tr *Transfer) Response() error {
 	return nil
 }
 
-func (tr *Transfer) Dial() error {
+func (tr *Transfer) DoUpload(reader io.Reader) error {
+	info, err := tr.sendHeader()
+	if err != nil {
+		return err
+	}
+	bar := progressbar.DefaultBytes(
+		info.Size,
+		"upload",
+	)
 
+	if reader == nil {
+		file, err := os.Open(tr.FilePath)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+		n, err := io.Copy(io.MultiWriter(tr.Conn(), bar), file)
+		logrus.Debug("stop process upload ", err, n)
+		// time.Sleep(5 * time.Second)
+		return err
+	} else {
+		n, err := io.Copy(io.MultiWriter(tr.Conn(), bar), reader)
+		logrus.Warn("use file discriber and do noting", n, err)
+	}
 	return nil
 }
 
-func (tr *Transfer) Wait() error {
-	if !tr.ShowQR {
-		info, err := tr.sendHeader()
+func (tr *Transfer) DoDownload(writer io.Writer) error {
+	info, err := tr.sendHeader()
+	if err != nil {
+		return err
+	}
+	bar := progressbar.DefaultBytes(
+		info.Size,
+		"download",
+	)
+	if writer == nil {
+		file, err := os.Create(filepath.Join(os.Getenv("HOME"), "Downloads", filepath.Base(info.Name)))
 		if err != nil {
+			logrus.Error(err)
 			return err
 		}
-		if !info.Ready {
-			return fmt.Errorf("remote not ready")
-		}
-		if tr.Upload { // upload case
-
-			file, err := os.Open(tr.FilePath)
-			if err != nil {
-				return err
-			}
-			defer file.Close()
-			bar := progressbar.DefaultBytes(
-				info.Size,
-				"upload",
-			)
-			n, err := io.Copy(io.MultiWriter(tr.Conn(), bar), file)
-			logrus.Debug("stop process upload ", err, n)
-			// time.Sleep(5 * time.Second)
-
-			return err
-		} else {
-
-			file, err := os.Create(filepath.Join(os.Getenv("HOME"), "Downloads", filepath.Base(info.Name)))
-			if err != nil {
-				logrus.Error(err)
-				return err
-			}
-			defer file.Close()
-			bar := progressbar.DefaultBytes(
-				info.Size,
-				"download",
-			)
-			io.Copy(io.MultiWriter(file, bar), tr.Conn())
-			return nil
-		}
-	}
-	downUrl, _ := utils.MakeRandomStr(10)
-	upUrl, _ := utils.MakeRandomStr(10)
-	entryUrl := downUrl
-	entryType := TYPE_DOWNLOAD
-	if tr.Upload {
-		entryUrl, _ = utils.MakeRandomStr(10)
-		entryType = TYPE_UPLOAD
-	}
-	tr.ServerAddr = fmt.Sprintf("http://%s:%d/%s", utils.GetLocalIP(), tr.ServerPort, entryUrl)
-	logrus.Debug(tr.ServerAddr)
-	r := mux.NewRouter()
-	r.HandleFunc("/"+entryUrl, func(w http.ResponseWriter, r *http.Request) {
-		page := `<html>
-		<form action="` + upUrl + `" method="post" enctype="multipart/form-data">
-		<input type="file" name="xcontent" required>
-		<button type="submit">送信する</button>
-	</form></html>`
-		w.Write([]byte(page))
-	})
-	r.HandleFunc("/"+downUrl, func(w http.ResponseWriter, r *http.Request) {
-
-		tmpFilePath := path.Join(tr.TmpPath, path.Base(tr.FilePath))
-
-		finfo, err := os.Stat(tmpFilePath)
-		if os.IsNotExist(err) {
-			logrus.Debug("tmp file ", tmpFilePath, " not exist")
-			tf, err := os.Create(tmpFilePath)
-			if err != nil {
-				w.Write([]byte(err.Error()))
-				return
-			}
-			defer tf.Close()
-			info := FileInfo{
-				Name:       tr.FilePath,
-				OptionType: TYPE_DOWNLOAD,
-			}
-			err = gob.NewEncoder(tr.Conn()).Encode(info)
-			if err != nil {
-				w.Write([]byte(err.Error()))
-				return
-			}
-			err = gob.NewDecoder(tr.Conn()).Decode(&info)
-			if err != nil {
-				w.Write([]byte(err.Error()))
-				return
-			}
-			if !info.Ready {
-				w.Write([]byte("remote is not ready"))
-				return
-			}
-			bar := progressbar.DefaultBytes(
-				info.Size,
-				"download",
-			)
-			mw := io.MultiWriter(tf, w, bar)
-			io.Copy(mw, tr.Conn())
-		} else {
-			logrus.Debug("tmp file ", tmpFilePath, " already exist")
-			tf, err := os.Open(tmpFilePath)
-			if err != nil {
-				w.Write([]byte(err.Error()))
-				return
-			}
-			defer tf.Close()
-			bar := progressbar.DefaultBytes(
-				finfo.Size(),
-				"download",
-			)
-			mw := io.MultiWriter(w, bar)
-			io.Copy(mw, tf)
-		}
-		logrus.Debug("end of gorutine ", err)
-	})
-	r.HandleFunc("/"+upUrl, func(w http.ResponseWriter, r *http.Request) {
-		file, header, err := r.FormFile("xcontent")
-		if err != nil {
-			w.Write([]byte(err.Error()))
-			return
-		}
-		tr.FilePath = header.Filename
-
-		info := FileInfo{
-			Name:       header.Filename,
-			Size:       header.Size,
-			OptionType: TYPE_UPLOAD,
-			Ready:      true,
-		}
-		err = gob.NewEncoder(tr.Conn()).Encode(info)
-		if err != nil {
-			w.Write([]byte(err.Error()))
-			return
-		}
-		err = gob.NewDecoder(tr.Conn()).Decode(&info)
-		if err != nil {
-			w.Write([]byte(err.Error()))
-			return
-		}
-		if !info.Ready {
-			w.Write([]byte("remote is not ready"))
-			return
-		}
-
-		bar := progressbar.DefaultBytes(
-			info.Size,
-			"upload",
-		)
-
-		mw := io.MultiWriter(tr.Conn(), bar)
-		n, err := io.Copy(mw, file)
-
-		if err != nil {
-			w.Write([]byte(err.Error()))
-			return
-		}
-		msg := fmt.Sprintf("upload %s (%d:%d) success!", info.Name, info.Size, n)
-		w.Write([]byte(msg))
-		logrus.Debug("end of gorutine")
-	})
-	tr.server = &http.Server{Addr: fmt.Sprintf(":%d", tr.ServerPort), Handler: r}
-	if entryType == TYPE_DOWNLOAD {
-		fmt.Println("\nScan QR code to download file")
+		defer file.Close()
+		io.Copy(io.MultiWriter(file, bar), tr.Conn())
 	} else {
-		fmt.Println("\nScan QR code to upload file")
+		io.Copy(io.MultiWriter(writer, bar), tr.Conn())
 	}
-	fmt.Printf("\n")
-	qrc.ShowQR(tr.ServerAddr, false)
-	fmt.Printf("\n\n\n")
-	tr.server.ListenAndServe()
 	return nil
 }
 
 func (tr *Transfer) Close() {
 	tr.BaseImpl.Close()
-	if tr.server != nil {
-		tr.server.Close()
+	if tr.conn != nil {
+		tr.Conn().Close()
 	}
 }

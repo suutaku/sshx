@@ -122,6 +122,9 @@ func (pair *WebRTC) Dial() error {
 		return err
 	}
 	go func() {
+		for !pair.IsReady() {
+			time.Sleep(100 * time.Millisecond)
+		}
 		err := pair.BaseConnection.Dial()
 		if err != nil {
 			logrus.Error(err)

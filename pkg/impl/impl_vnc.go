@@ -15,9 +15,7 @@ type VNC struct {
 
 func NewVNC(hostId string) *VNC {
 	return &VNC{
-		BaseImpl: BaseImpl{
-			HId: hostId,
-		},
+		*NewBaseImpl(hostId),
 	}
 }
 

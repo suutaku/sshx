@@ -91,13 +91,11 @@ func (bc *BaseConnection) TargetId() string {
 }
 
 func (bc *BaseConnection) Dial() error {
-	bc.impl.Dial()
-	return nil
+	return bc.impl.Dial()
 }
 func (bc *BaseConnection) Response() error {
 	logrus.Debug("base connection response")
-	bc.impl.Response()
-	return nil
+	return bc.impl.Response()
 }
 
 func (bc *BaseConnection) ResponseTCP(resp impl.Sender) {

@@ -29,9 +29,7 @@ type Messager struct {
 
 func NewMessager(hostId string) *Messager {
 	return &Messager{
-		BaseImpl: BaseImpl{
-			HId: hostId,
-		},
+		BaseImpl: *NewBaseImpl(hostId),
 		sendChan: make(chan Message, 1024),
 		recvChan: make(chan Message, 1024),
 	}

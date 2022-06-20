@@ -9,15 +9,27 @@ import (
 )
 
 type BaseImpl struct {
-	HId    string
-	conn   *net.Conn
-	Parent string
-	PId    string
-	lock   sync.Mutex
+	HId        string
+	conn       *net.Conn
+	Parent     string
+	PId        string
+	lock       sync.Mutex
+	ConnectNow bool
 }
 
-func NewBaseImpl() *BaseImpl {
-	return &BaseImpl{}
+func NewBaseImpl(hid string) *BaseImpl {
+	return &BaseImpl{
+		ConnectNow: true,
+		HId:        hid,
+	}
+}
+
+func (base *BaseImpl) IsNeedConnect() bool {
+	return base.ConnectNow
+}
+
+func (base *BaseImpl) NoNeedConnect() {
+	base.ConnectNow = false
 }
 
 func (base *BaseImpl) Init() {}

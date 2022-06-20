@@ -67,9 +67,11 @@ func (sender *Sender) Send() (net.Conn, error) {
 		return nil, err
 	}
 	logrus.Debug("waiting TCP Responnse")
-	err = gob.NewDecoder(conn).Decode(sender)
-	if err != nil {
-		return nil, err
+	if !sender.Detach {
+		err = gob.NewDecoder(conn).Decode(sender)
+		if err != nil {
+			return nil, err
+		}
 	}
 	logrus.Debug("TCP Responnse OK")
 	if sender.Status != 0 {

@@ -2,13 +2,13 @@ package conn
 
 import (
 	"fmt"
-	"io"
 	"net"
 	"reflect"
 	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/suutaku/sshx/internal/utils"
 	"github.com/suutaku/sshx/pkg/impl"
 	"github.com/suutaku/sshx/pkg/types"
 )
@@ -50,17 +50,18 @@ func (cm *ConnectionManager) Stop() {
 func (cm *ConnectionManager) CreateConnection(sender impl.Sender, sock net.Conn, poolId types.PoolId) error {
 	for i := 0; i < len(cm.css); i++ {
 
-		go func(idx int) {
-			if cm.css[idx].IsReady() {
+		if cm.css[i].IsReady() {
+			go func(cs ConnectionService) {
 				s, c := net.Pipe()
-				err := cm.css[idx].CreateConnection(sender, c, poolId)
+				err := cs.CreateConnection(sender, c, poolId)
 				if err != nil {
-					logrus.Error(err)
+					logrus.Error(err, i)
 					return
 				}
-				io.Copy(sock, s)
-			}
-		}(i)
+				utils.Pipe(&sock, &s)
+			}(cm.css[i])
+		}
+
 		// go func(idx int) {
 		// 	if cm.css[idx].IsReady() {
 		// 		err := cm.css[idx].CreateConnection(sender, sock, poolId)
@@ -178,7 +179,6 @@ func (stm *StatManager) RemovePair(id CleanRequest) {
 	}
 	// close parent
 	if stm.cpPool[id.Key] != nil && stm.cpPool[id.Key].Name() == id.ConnectionName {
-		logrus.Warn("start close ", id)
 		stm.cpPool[id.Key].Close()
 		delete(stm.cpPool, id.Key)
 		stm.removeStat(id.Key)
@@ -188,7 +188,7 @@ func (stm *StatManager) RemovePair(id CleanRequest) {
 
 func (stm *StatManager) doAddPair(pair Connection) error {
 	stm.cpPool[pair.PoolId().String(pair.Direction())] = pair
-	logrus.Warnf("add pair %s %s successfully\n", pair.PoolId().String(pair.Direction()), pair.Name())
+	logrus.Debugf("add pair %s %s successfully\n", pair.PoolId().String(pair.Direction()), pair.Name())
 	stat := types.Status{
 		PairId:    pair.PoolId().String(pair.Direction()),
 		TargetId:  pair.TargetId(),
@@ -226,7 +226,7 @@ func (stm *StatManager) AddPair(pair Connection) error {
 			return stm.doAddPair(pair)
 		}
 		for !oldPair.IsReady() && !pair.IsReady() {
-			logrus.Warnf("watting %s\n", pair.Name())
+			logrus.Debug("watting %s\n", pair.Name())
 			time.Sleep(500 * time.Millisecond)
 		}
 		if oldPair.IsReady() {
