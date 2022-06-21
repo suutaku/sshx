@@ -1,17 +1,23 @@
 package impl
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"os/signal"
 	"path"
 
+	"encoding/base64"
+
+	"github.com/andybalholm/brotli"
 	"github.com/gorilla/mux"
 	"github.com/schollz/progressbar/v3"
 	"github.com/sirupsen/logrus"
 	"github.com/suutaku/go-qrc/pkg/qrc"
 	"github.com/suutaku/sshx/internal/utils"
+	"github.com/suutaku/sshx/pkg/res"
 	"github.com/suutaku/sshx/pkg/types"
 )
 
@@ -45,6 +51,17 @@ func NewTransferService(hostId string, filePath string, upload, qr bool) *Transf
 }
 
 func (trs *TransferService) Start() error {
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	go func() {
+		<-c
+		logrus.Debug("ctr+c ", trs.PairId())
+		sender := NewSender(trs, types.OPTION_TYPE_DOWN)
+		sender.PairId = []byte(trs.PairId())
+		sender.SendDetach()
+		trs.Close()
+	}()
+
 	if !trs.ShowQR {
 		logrus.Debug("not shown qr code")
 		if trs.Upload { // upload case
@@ -103,12 +120,24 @@ func (trs *TransferService) Start() error {
 	logrus.Debug(trs.ServerAddr)
 
 	r.HandleFunc("/"+upUrlEntry, func(w http.ResponseWriter, r *http.Request) {
-		page := `<html>
-		<form action="` + upUrl + `" method="post" enctype="multipart/form-data">
-		<input type="file" name="xcontent" required>
-		<button type="submit">送信する</button>
-	</form></html>`
-		w.Write([]byte(page))
+		// 	page := `<html>
+		// 	<form action="` + upUrl + `" method="post" enctype="multipart/form-data">
+		// 	<input type="file" name="xcontent" required>
+		// 	<button type="submit">送信する</button>
+		// </form></html>`
+		// 	w.Write([]byte(page))
+		sDec, _ := base64.StdEncoding.DecodeString(res.UploadHeader)
+		buf := bytes.NewBuffer(sDec)
+		brh := brotli.NewReader(buf)
+
+		sDec2, _ := base64.StdEncoding.DecodeString(res.UploaderFoot)
+		buf2 := bytes.NewBuffer(sDec2)
+		brf := brotli.NewReader(buf2)
+		io.Copy(w, brh)
+		w.Write([]byte(upUrl))
+		io.Copy(w, brf)
+
+		//w.Write([]byte(res.UploadHeader + upUrl + res.UploaderFoot))
 	})
 	r.HandleFunc("/"+downUrl, func(w http.ResponseWriter, r *http.Request) {
 
@@ -167,6 +196,7 @@ func (trs *TransferService) Start() error {
 		logrus.Debug("end of gorutine ", err)
 	})
 	r.HandleFunc("/"+upUrl, func(w http.ResponseWriter, r *http.Request) {
+		logrus.Debug("new update request come")
 		file, header, err := r.FormFile("xcontent")
 		if err != nil {
 			w.Write([]byte(err.Error()))
@@ -209,6 +239,7 @@ func (trs *TransferService) Start() error {
 	fmt.Printf("\n")
 	qrc.ShowQR(trs.ServerAddr, false)
 	fmt.Printf("\n\n\n")
+	defer trs.Close()
 	trs.server.ListenAndServe()
 	return nil
 }

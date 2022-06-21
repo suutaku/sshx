@@ -36,6 +36,7 @@ func NewSender(imp Impl, optCode int32) *Sender {
 	ret.Payload = buf.Bytes()
 	cm := conf.NewConfManager("")
 	ret.LocalEntry = fmt.Sprintf("127.0.0.1:%d", cm.Conf.LocalTCPPort)
+	ret.PairId = []byte(imp.PairId())
 	return ret
 }
 
@@ -67,13 +68,13 @@ func (sender *Sender) Send() (net.Conn, error) {
 		return nil, err
 	}
 	logrus.Debug("waiting TCP Responnse")
-	if !sender.Detach {
-		err = gob.NewDecoder(conn).Decode(sender)
-		if err != nil {
-			return nil, err
-		}
+
+	err = gob.NewDecoder(conn).Decode(sender)
+	if err != nil {
+		return nil, err
 	}
-	logrus.Debug("TCP Responnse OK")
+
+	logrus.Debug("TCP Responnse OK ", string(sender.PairId))
 	if sender.Status != 0 {
 		return nil, fmt.Errorf("response error")
 	}
@@ -81,10 +82,7 @@ func (sender *Sender) Send() (net.Conn, error) {
 }
 
 func (sender *Sender) SendDetach() (net.Conn, error) {
-	conn, err := net.Dial("tcp", sender.LocalEntry)
-	if err != nil {
-		return nil, err
-	}
 	sender.Detach = true
-	return conn, gob.NewEncoder(conn).Encode(sender)
+	return sender.Send()
+
 }

@@ -1,11 +1,13 @@
 package impl
 
 import (
+	"encoding/gob"
 	"fmt"
 	"os"
 
 	"github.com/jedib0t/go-pretty/v6/list"
 	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/sirupsen/logrus"
 	"github.com/suutaku/sshx/pkg/types"
 )
 
@@ -34,12 +36,24 @@ func (stat *STAT) Response() error {
 	return nil
 }
 
-func (stat *STAT) ShowStatus(status []types.Status, displayType int) {
+func (stat *STAT) ShowStatus(displayType int) {
+	logrus.Debug("read from conn")
+	var pld []types.Status
+	err := gob.NewEncoder(stat.Conn()).Encode(&pld)
+	if err != nil {
+		logrus.Error(err)
+		return
+	}
+	err = gob.NewDecoder(stat.Conn()).Decode(&pld)
+	if err != nil {
+		logrus.Error(err)
+		return
+	}
 	switch displayType {
 	case DISPLAY_TABLE:
-		stat.showTable(status)
+		stat.showTable(pld)
 	case DISPLAY_TREE:
-		stat.showList(status)
+		stat.showList(pld)
 	}
 }
 

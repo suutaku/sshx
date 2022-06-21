@@ -1,8 +1,6 @@
 package main
 
 import (
-	"encoding/gob"
-
 	"github.com/suutaku/sshx/pkg/types"
 
 	cli "github.com/jawher/mow.cli"
@@ -26,24 +24,18 @@ func cmdStatus(cmd *cli.Cmd) {
 			logrus.Error("cannot create sender")
 			return
 		}
-		conn, err := sender.SendDetach()
+		conn, err := sender.Send()
 		if err != nil {
 			logrus.Error(err)
 			return
 		}
-		defer conn.Close()
+		imp.SetConn(conn)
 		logrus.Debug("impl responsed")
-		var pld []types.Status
-		err = gob.NewDecoder(conn).Decode(&pld)
-		if err != nil {
-			logrus.Error(err)
-			return
-		}
-		logrus.Debug("show response")
 		displayStyle := impl.DISPLAY_TABLE
 		if *treeOpt {
 			displayStyle = impl.DISPLAY_TREE
 		}
-		imp.ShowStatus(pld, displayStyle)
+		imp.ShowStatus(displayStyle)
+		imp.Close()
 	}
 }

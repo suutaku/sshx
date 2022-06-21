@@ -53,10 +53,12 @@ func (wss *WebRTCService) CreateConnection(sender impl.Sender, sock net.Conn, po
 	if !sender.Detach {
 		iface.SetConn(sock)
 	}
+
 	pair := NewWebRTC(wss.conf, iface, wss.id, iface.HostId(), poolId, CONNECTION_DRECT_OUT, &wss.CleanChan)
 	if pair == nil {
 		return fmt.Errorf("cannot create pair")
 	}
+
 	err = pair.Dial()
 	if err != nil {
 		return err
@@ -84,15 +86,15 @@ func (wss *WebRTCService) CreateConnection(sender impl.Sender, sock net.Conn, po
 		logrus.Error("NOT create connection for ", impl.GetImplName(iface.Code()))
 	}
 
-	if !sender.Detach {
-		// fill pair id and send back the 'sender'
-		sender.PairId = []byte(poolId.String(pair.Direction()))
-		go pair.ResponseTCP(sender)
-	}
 	logrus.Debug("ready to put piar ", pair.poolId.String(pair.Direction()))
 	err = wss.AddPair(pair)
 	if err != nil {
 		return err
+	}
+	if !sender.Detach {
+		logrus.Warn("waitting pair send exit message")
+		<-pair.Exit
+		logrus.Warn("pair send exit message")
 	}
 	return nil
 }

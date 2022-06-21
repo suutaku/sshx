@@ -3,6 +3,7 @@ module github.com/suutaku/sshx
 go 1.16
 
 require (
+	github.com/andybalholm/brotli v1.0.4
 	github.com/deckarep/gosx-notifier v0.0.0-20180201035817-e127226297fb // indirect
 	github.com/fsnotify/fsnotify v1.5.4
 	github.com/go-vgo/robotgo v1.0.0-beta5.2 // indirect

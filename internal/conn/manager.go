@@ -1,6 +1,7 @@
 package conn
 
 import (
+	"encoding/gob"
 	"fmt"
 	"net"
 	"reflect"
@@ -58,6 +59,13 @@ func (cm *ConnectionManager) CreateConnection(sender impl.Sender, sock net.Conn,
 					logrus.Error(err, i)
 					return
 				}
+				sender.PairId = []byte(poolId.String(CONNECTION_DRECT_OUT))
+				logrus.Warn(sender.PairId)
+				err = cs.ResponseTCP(sender, sock)
+				if err != nil {
+					logrus.Error(err, i)
+					return
+				}
 				utils.Pipe(&sock, &s)
 			}(cm.css[i])
 		}
@@ -75,22 +83,65 @@ func (cm *ConnectionManager) CreateConnection(sender impl.Sender, sock net.Conn,
 	return nil
 }
 
-func (cm *ConnectionManager) DestroyConnection(sender impl.Sender) error {
+func (cm *ConnectionManager) DestroyConnection(sender impl.Sender, conn net.Conn) error {
+
 	for _, v := range cm.css {
-		v.DestroyConnection(sender)
+		err := v.DestroyConnection(sender)
+		if err != nil {
+			return err
+		}
+		err = v.ResponseTCP(sender, conn)
+		if err != nil {
+			logrus.Error(err)
+			return err
+		}
 	}
 	return nil
 }
 
 func (cm *ConnectionManager) AttachConnection(sender impl.Sender, sock net.Conn) error {
 	for _, v := range cm.css {
-		v.AttachConnection(sender, sock)
+		go func(cs ConnectionService) {
+			s, c := net.Pipe()
+			err := cs.AttachConnection(sender, c)
+			if err != nil {
+				return
+			}
+			err = cs.ResponseTCP(sender, sock)
+			if err != nil {
+				logrus.Error(err)
+				return
+			}
+			utils.Pipe(&s, &sock)
+		}(v)
 	}
 	return nil
 }
 
-func (cm *ConnectionManager) Status() []types.Status {
-	return cm.stm.Stat()
+func (cm *ConnectionManager) Status(sender impl.Sender, conn net.Conn) error {
+	imp := sender.GetImpl()
+	bs := NewBaseConnectionService(imp.HostId())
+	imp.SetConn(conn)
+	err := bs.ResponseTCP(sender, conn)
+	if err != nil {
+		logrus.Error(err)
+		return err
+	}
+	res := []types.Status{}
+	err = gob.NewDecoder(conn).Decode(&res)
+	if err != nil {
+		logrus.Error(err)
+		return err
+	}
+	res = cm.stm.Stat()
+	logrus.Debug("responsed ----->", res)
+	err = gob.NewEncoder(conn).Encode(res)
+	if err != nil {
+		logrus.Error(err)
+		return err
+	}
+	logrus.Debug("responsed <-----")
+	return nil
 }
 
 type StatManager struct {

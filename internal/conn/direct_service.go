@@ -77,6 +77,7 @@ func (ds *DirectService) CreateConnection(sender impl.Sender, sock net.Conn, poo
 		return fmt.Errorf("unknown impl")
 
 	}
+
 	if !sender.Detach {
 		iface.SetConn(sock)
 	}
@@ -88,11 +89,6 @@ func (ds *DirectService) CreateConnection(sender impl.Sender, sock net.Conn, poo
 	err = ds.AddPair(pair)
 	if err != nil {
 		return err
-	}
-	if !sender.Detach {
-		// fill pair id and send back the 'sender'
-		sender.PairId = []byte(pair.poolId.String(pair.Direction()))
-		go pair.ResponseTCP(sender)
 	}
 	return nil
 }

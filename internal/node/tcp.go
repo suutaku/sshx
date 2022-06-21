@@ -47,17 +47,17 @@ func (node *Node) ServeTCP() {
 			}
 
 		case types.OPTION_TYPE_DOWN:
-			logrus.Debug("down option")
-			err := node.connMgr.DestroyConnection(tmp)
+			logrus.Debug("down option ", string(tmp.PairId))
+			err := node.connMgr.DestroyConnection(tmp, sock)
 			if err != nil {
 				logrus.Error(err)
 			}
 
 		case types.OPTION_TYPE_STAT:
 			logrus.Debug("stat option")
-			res := node.connMgr.Status()
-			err = gob.NewEncoder(sock).Encode(res)
+			err := node.connMgr.Status(tmp, sock)
 			if err != nil {
+				sock.Close()
 				logrus.Error(err)
 			}
 		case types.OPTION_TYPE_ATTACH:

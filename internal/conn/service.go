@@ -17,6 +17,7 @@ type ConnectionService interface {
 	CreateConnection(impl.Sender, net.Conn, types.PoolId) error
 	DestroyConnection(impl.Sender) error
 	AttachConnection(impl.Sender, net.Conn) error
+	ResponseTCP(impl.Sender, net.Conn) error
 	IsReady() bool
 	Stop()
 	GetPair(id string) Connection
@@ -46,6 +47,17 @@ func NewBaseConnectionService(id string) *BaseConnectionService {
 
 func (base *BaseConnectionService) Id() string {
 	return base.id
+}
+
+func (base *BaseConnectionService) ResponseTCP(sender impl.Sender, conn net.Conn) error {
+	logrus.Debug("do Response TCP")
+	err := gob.NewEncoder(conn).Encode(sender)
+	if err != nil {
+		logrus.Error(err)
+		return err
+	}
+	logrus.Debug("did Response TCP")
+	return nil
 }
 
 func (base *BaseConnectionService) RemovePair(id CleanRequest) {

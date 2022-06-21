@@ -1,7 +1,6 @@
 package conn
 
 import (
-	"encoding/gob"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -19,7 +18,6 @@ type Connection interface {
 	GetImpl() impl.Impl
 	PoolId() *types.PoolId
 	ResetPoolId(id types.PoolId)
-	ResponseTCP(resp impl.Sender)
 	TargetId() string
 	Dial() error
 	Response() error
@@ -96,19 +94,4 @@ func (bc *BaseConnection) Dial() error {
 func (bc *BaseConnection) Response() error {
 	logrus.Debug("base connection response")
 	return bc.impl.Response()
-}
-
-func (bc *BaseConnection) ResponseTCP(resp impl.Sender) {
-	logrus.Debug("waiting pair signal")
-	err := <-bc.Exit
-	logrus.Debug("Response TCP")
-	if err != nil {
-		logrus.Error(err)
-		resp.Status = -1
-	}
-	err = gob.NewEncoder(bc.impl.Writer()).Encode(resp)
-	if err != nil {
-		logrus.Error(err)
-		return
-	}
 }
