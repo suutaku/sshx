@@ -83,17 +83,14 @@ func (cm *ConnectionManager) CreateConnection(sender *impl.Sender, sock net.Conn
 }
 
 func (cm *ConnectionManager) DestroyConnection(sender *impl.Sender, conn net.Conn) error {
-
-	for _, v := range cm.css {
-		err := v.DestroyConnection(sender)
-		if err != nil {
-			return err
-		}
-		err = v.ResponseTCP(sender, conn)
-		if err != nil {
-			logrus.Error(err)
-			return err
-		}
+	err := cm.css[0].DestroyConnection(sender)
+	if err != nil {
+		return err
+	}
+	err = cm.css[0].ResponseTCP(sender, conn)
+	if err != nil {
+		logrus.Error(err)
+		return err
 	}
 	return nil
 }

@@ -51,6 +51,7 @@ func (ds *DirectService) Start() error {
 			}
 			logrus.Debug("new direct info com ", info)
 			imp := impl.GetImpl(info.ImplCode)
+			imp.SetHostId(info.HostId)
 			poolId := types.NewPoolId(info.Id, imp.Code())
 			// server reset direction
 			conn := NewDirectConnection(imp, ds.Id(), info.HostId, *poolId, CONNECTION_DRECT_IN, &ds.CleanChan)
