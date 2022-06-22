@@ -48,7 +48,7 @@ func (cm *ConnectionManager) Stop() {
 	}
 }
 
-func (cm *ConnectionManager) CreateConnection(sender impl.Sender, sock net.Conn, poolId types.PoolId) error {
+func (cm *ConnectionManager) CreateConnection(sender *impl.Sender, sock net.Conn, poolId types.PoolId) error {
 	for i := 0; i < len(cm.css); i++ {
 
 		if cm.css[i].IsReady() {
@@ -60,7 +60,6 @@ func (cm *ConnectionManager) CreateConnection(sender impl.Sender, sock net.Conn,
 					return
 				}
 				sender.PairId = []byte(poolId.String(CONNECTION_DRECT_OUT))
-				logrus.Warn(sender.PairId)
 				err = cs.ResponseTCP(sender, sock)
 				if err != nil {
 					logrus.Error(err, i)
@@ -83,7 +82,7 @@ func (cm *ConnectionManager) CreateConnection(sender impl.Sender, sock net.Conn,
 	return nil
 }
 
-func (cm *ConnectionManager) DestroyConnection(sender impl.Sender, conn net.Conn) error {
+func (cm *ConnectionManager) DestroyConnection(sender *impl.Sender, conn net.Conn) error {
 
 	for _, v := range cm.css {
 		err := v.DestroyConnection(sender)
@@ -99,22 +98,22 @@ func (cm *ConnectionManager) DestroyConnection(sender impl.Sender, conn net.Conn
 	return nil
 }
 
-func (cm *ConnectionManager) AttachConnection(sender impl.Sender, sock net.Conn) error {
-	for _, v := range cm.css {
-		go func(cs ConnectionService) {
-			s, c := net.Pipe()
-			err := cs.AttachConnection(sender, c)
-			if err != nil {
-				return
-			}
-			err = cs.ResponseTCP(sender, sock)
-			if err != nil {
-				logrus.Error(err)
-				return
-			}
-			utils.Pipe(&s, &sock)
-		}(v)
-	}
+func (cm *ConnectionManager) AttachConnection(sender *impl.Sender, sock net.Conn) error {
+	go func() {
+		s, c := net.Pipe()
+		err := cm.css[0].AttachConnection(sender, c)
+		if err != nil {
+			logrus.Error(err)
+			return
+		}
+		logrus.Debug("attached ", sender.GetImpl().HostId())
+		err = cm.css[0].ResponseTCP(sender, sock)
+		if err != nil {
+			logrus.Error(err)
+			return
+		}
+		utils.Pipe(&s, &sock)
+	}()
 	return nil
 }
 
@@ -122,7 +121,7 @@ func (cm *ConnectionManager) Status(sender impl.Sender, conn net.Conn) error {
 	imp := sender.GetImpl()
 	bs := NewBaseConnectionService(imp.HostId())
 	imp.SetConn(conn)
-	err := bs.ResponseTCP(sender, conn)
+	err := bs.ResponseTCP(&sender, conn)
 	if err != nil {
 		logrus.Error(err)
 		return err

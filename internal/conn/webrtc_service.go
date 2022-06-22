@@ -41,7 +41,7 @@ func (wss *WebRTCService) Start() error {
 	return nil
 }
 
-func (wss *WebRTCService) CreateConnection(sender impl.Sender, sock net.Conn, poolId types.PoolId) error {
+func (wss *WebRTCService) CreateConnection(sender *impl.Sender, sock net.Conn, poolId types.PoolId) error {
 	err := wss.BaseConnectionService.CreateConnection(sender, sock, poolId)
 	if err != nil {
 		return err
@@ -99,7 +99,7 @@ func (wss *WebRTCService) CreateConnection(sender impl.Sender, sock net.Conn, po
 	return nil
 }
 
-func (wss *WebRTCService) DestroyConnection(tmp impl.Sender) error {
+func (wss *WebRTCService) DestroyConnection(tmp *impl.Sender) error {
 	pair := wss.GetPair(string(tmp.PairId))
 	if pair == nil {
 		return fmt.Errorf("cannot get pair for %s", string(tmp.PairId))

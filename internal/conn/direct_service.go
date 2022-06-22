@@ -66,7 +66,7 @@ func (ds *DirectService) Start() error {
 	return nil
 }
 
-func (ds *DirectService) CreateConnection(sender impl.Sender, sock net.Conn, poolId types.PoolId) error {
+func (ds *DirectService) CreateConnection(sender *impl.Sender, sock net.Conn, poolId types.PoolId) error {
 	// client reset direction
 	err := ds.BaseConnectionService.CreateConnection(sender, sock, poolId)
 	if err != nil {
@@ -93,7 +93,7 @@ func (ds *DirectService) CreateConnection(sender impl.Sender, sock net.Conn, poo
 	return nil
 }
 
-func (ds *DirectService) DestroyConnection(tmp impl.Sender) error {
+func (ds *DirectService) DestroyConnection(tmp *impl.Sender) error {
 	pair := ds.GetPair(string(tmp.PairId))
 	if pair == nil {
 		return fmt.Errorf("cannot get pair for %s", string(tmp.PairId))

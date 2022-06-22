@@ -14,10 +14,10 @@ import (
 type ConnectionService interface {
 	Start() error
 	SetStateManager(*StatManager) error
-	CreateConnection(impl.Sender, net.Conn, types.PoolId) error
-	DestroyConnection(impl.Sender) error
-	AttachConnection(impl.Sender, net.Conn) error
-	ResponseTCP(impl.Sender, net.Conn) error
+	CreateConnection(*impl.Sender, net.Conn, types.PoolId) error
+	DestroyConnection(*impl.Sender) error
+	AttachConnection(*impl.Sender, net.Conn) error
+	ResponseTCP(*impl.Sender, net.Conn) error
 	IsReady() bool
 	Stop()
 	GetPair(id string) Connection
@@ -49,7 +49,7 @@ func (base *BaseConnectionService) Id() string {
 	return base.id
 }
 
-func (base *BaseConnectionService) ResponseTCP(sender impl.Sender, conn net.Conn) error {
+func (base *BaseConnectionService) ResponseTCP(sender *impl.Sender, conn net.Conn) error {
 	logrus.Debug("do Response TCP")
 	err := gob.NewEncoder(conn).Encode(sender)
 	if err != nil {
@@ -91,7 +91,7 @@ func (base *BaseConnectionService) SetStateManager(stm *StatManager) error {
 	return nil
 }
 
-func (base *BaseConnectionService) CreateConnection(sender impl.Sender, conn net.Conn, poolId types.PoolId) error {
+func (base *BaseConnectionService) CreateConnection(sender *impl.Sender, conn net.Conn, poolId types.PoolId) error {
 	return nil
 }
 
@@ -106,20 +106,18 @@ func (base *BaseConnectionService) CreateConnection(sender impl.Sender, conn net
 // 	return nil
 // }
 
-func (base *BaseConnectionService) AttachConnection(sender impl.Sender, sock net.Conn) error {
+func (base *BaseConnectionService) AttachConnection(sender *impl.Sender, sock net.Conn) error {
+	imp := sender.GetImpl()
 	pair := base.GetPair(string(sender.PairId))
 	if pair == nil {
 		return fmt.Errorf("cannot attach impl with id: %s", string(sender.PairId))
-
 	}
-	// should assign host id and return
-	retSender := impl.NewSender(pair.GetImpl(), types.OPTION_TYPE_ATTACH)
-	err := gob.NewEncoder(sock).Encode(retSender)
-	if err != nil {
-		return err
+	if impl.GetImplName(pair.GetImpl().Code()) != impl.GetImplName(imp.Code()) {
+		return fmt.Errorf("cannot impl type dismatch, except %s, got %s", impl.GetImplName(pair.GetImpl().Code()), impl.GetImplName(imp.Code()))
 	}
-	pair.GetImpl().Attach(sock)
-	return nil
+	newSender := impl.NewSender(pair.GetImpl(), types.OPTION_TYPE_ATTACH)
+	sender.Payload = newSender.Payload
+	return pair.GetImpl().Attach(sock)
 }
 
 func (base *BaseConnectionService) IsReady() bool {

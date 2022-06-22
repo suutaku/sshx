@@ -40,7 +40,7 @@ func (node *Node) ServeTCP() {
 				continue
 			}
 			poolId := types.NewPoolId(time.Now().UnixNano(), impl.Code())
-			err := node.connMgr.CreateConnection(tmp, sock, *poolId)
+			err := node.connMgr.CreateConnection(&tmp, sock, *poolId)
 			if err != nil {
 				sock.Close()
 				logrus.Error(err)
@@ -48,7 +48,7 @@ func (node *Node) ServeTCP() {
 
 		case types.OPTION_TYPE_DOWN:
 			logrus.Debug("down option ", string(tmp.PairId))
-			err := node.connMgr.DestroyConnection(tmp, sock)
+			err := node.connMgr.DestroyConnection(&tmp, sock)
 			if err != nil {
 				logrus.Error(err)
 			}
@@ -62,7 +62,7 @@ func (node *Node) ServeTCP() {
 			}
 		case types.OPTION_TYPE_ATTACH:
 			logrus.Debug("attach option")
-			err := node.connMgr.AttachConnection(tmp, sock)
+			err := node.connMgr.AttachConnection(&tmp, sock)
 			if err != nil {
 				logrus.Error(err)
 			}

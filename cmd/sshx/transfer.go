@@ -70,7 +70,6 @@ func cmdDownload(cmd *cli.Cmd) {
 			logrus.Error(err)
 			return
 		}
-		logrus.Warn("returned pair id ", string(sender.PairId))
 		imp.PId = string(sender.PairId)
 		imp.SetConn(conn)
 		err = imp.Start()
