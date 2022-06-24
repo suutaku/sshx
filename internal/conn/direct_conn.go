@@ -40,6 +40,10 @@ func (dc *DirectConnection) Name() string {
 }
 
 func (dc *DirectConnection) Dial() error {
+	if !dc.impl.IsNeedConnect() {
+		dc.Ready()
+		return nil
+	}
 	logrus.Debug("dial ", dc.TargetId(), " directly")
 	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", dc.TargetId(), directPort))
 	if err != nil {
