@@ -38,12 +38,14 @@ type SSH struct {
 }
 
 func NewSSH(address string, x11 bool, ident string, copyId bool) *SSH {
-	return &SSH{
+	ret := &SSH{
 		X11:       x11,
 		Address:   address,
 		CopyIdOpt: copyId,
 		Identify:  ident,
 	}
+	ret.ConnectNow = true
+	return ret
 }
 
 func (s *SSH) Code() int32 {

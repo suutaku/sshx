@@ -44,6 +44,11 @@ func cmdStartProxy(cmd *cli.Cmd) {
 		if err != nil {
 			logrus.Error(err)
 		}
+		err = proxy.Start()
+		if err != nil {
+			logrus.Error(err)
+		}
+		proxy.Close()
 	}
 }
 

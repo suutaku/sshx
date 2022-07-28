@@ -189,6 +189,8 @@ func (wss *WebRTCService) ServePush(info types.SignalingInfo) {
 		logrus.Errorln("push to ", info.Target, "faild")
 		return
 	}
+	logrus.Debug(wss.signalingServerAddr +
+		path.Join("/", "push", info.Target))
 }
 
 func (wss *WebRTCService) ServeCandidateInfo(info types.SignalingInfo) {

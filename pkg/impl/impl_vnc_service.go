@@ -61,7 +61,7 @@ func (vnc *VNCService) Dial() error {
 		return fmt.Errorf("vnc service was already running")
 	}
 	r := mux.NewRouter()
-	r.PathPrefix("/").Handler(http.FileServer(http.Dir(cm.Conf.VNCStaticPath)))
+	r.Handle("/", http.FileServer(http.Dir(cm.Conf.VNCStaticPath)))
 	r.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		deviceId := r.URL.Query()["device"]
 		logrus.Debug(deviceId)

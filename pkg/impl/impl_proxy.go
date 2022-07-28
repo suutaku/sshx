@@ -28,7 +28,7 @@ func (p *Proxy) Code() int32 {
 	return types.APP_TYPE_PROXY
 }
 
-func (p *Proxy) Dial() error {
+func (p *Proxy) Start() error {
 	conf.ClearKnownHosts(fmt.Sprintf("127.0.0.1:%d", p.ProxyPort))
 	p.Running = true
 	listenner, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", p.ProxyPort))
@@ -36,6 +36,7 @@ func (p *Proxy) Dial() error {
 		return err
 	}
 	fmt.Println("Proxy for ", p.ProxyHostId, " at :", p.ProxyPort)
+
 	for p.Running {
 		conn, err := listenner.Accept()
 		if err != nil {
@@ -46,6 +47,7 @@ func (p *Proxy) Dial() error {
 
 	}
 	logrus.Debug("Close proxy for ", p.ProxyHostId)
+
 	return nil
 }
 
@@ -61,7 +63,8 @@ func (p *Proxy) Close() {
 func (p *Proxy) doDial(inconn net.Conn) {
 	imp := &SSH{
 		BaseImpl: BaseImpl{
-			HId: p.ProxyHostId,
+			HId:        p.ProxyHostId,
+			ConnectNow: true,
 		},
 	}
 	imp.SetParentId(p.PairId())

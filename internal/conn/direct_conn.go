@@ -40,35 +40,35 @@ func (dc *DirectConnection) Name() string {
 }
 
 func (dc *DirectConnection) Dial() error {
-	if !dc.impl.IsNeedConnect() {
-		dc.Ready()
-		return nil
+	if dc.impl.IsNeedConnect() {
+		logrus.Debug("dial ", dc.TargetId(), " directly")
+		conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", dc.TargetId(), directPort))
+		if err != nil {
+			return err
+		}
+		info := DirectInfo{
+			ImplCode: dc.impl.Code(),
+			HostId:   dc.nodeId,
+			Id:       dc.poolId.Raw(),
+		}
+		logrus.Debug("send direct info")
+		gob.NewEncoder(conn).Encode(info)
+		implConn := dc.impl.Conn()
+		dc.Conn = conn
+		go func() {
+			utils.Pipe(&implConn, &dc.Conn)
+			logrus.Error("direct broken ", dc.Name())
+			*dc.CleanChan <- CleanRequest{dc.PoolId().String(dc.Direction()), dc.Name()}
+		}()
+	} else {
+		logrus.Error("NOT create connection for ", impl.GetImplName(dc.impl.Code()))
 	}
-	logrus.Debug("dial ", dc.TargetId(), " directly")
-	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", dc.TargetId(), directPort))
-	if err != nil {
-		return err
-	}
-	info := DirectInfo{
-		ImplCode: dc.impl.Code(),
-		HostId:   dc.nodeId,
-		Id:       dc.poolId.Raw(),
-	}
-	logrus.Debug("send direct info")
-	gob.NewEncoder(conn).Encode(info)
-	err = dc.BaseConnection.Dial()
+	err := dc.BaseConnection.Dial()
 	if err != nil {
 		return err
 	}
 	dc.Exit <- err
 	dc.Ready()
-	implConn := dc.impl.Conn()
-	dc.Conn = conn
-	go func() {
-		utils.Pipe(&implConn, &dc.Conn)
-		logrus.Error("direct broken ", dc.Name())
-		*dc.CleanChan <- CleanRequest{dc.PoolId().String(dc.Direction()), dc.Name()}
-	}()
 	return nil
 }
 
