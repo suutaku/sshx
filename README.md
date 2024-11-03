@@ -50,7 +50,7 @@ SSH P2P tunneling service. An enhanced version of
 * RTCDataChannel/WebRTC: [https://github.com/pion/webrtc/v3](https://github.com/pion/webrtc/v3)
 * Signaling server: [http://peer1.xxxxxxxx.com:8990](http://peer1.xxxxx.com:8990)
 
-The server is not stable, just for testing. **Please use your own signaling server on production**.
+The server is not stable and just for testing. **Please use your own signaling server on production**.
 
 ## Install
 
@@ -126,8 +126,7 @@ signaling
 
 <ul>
 <li>Start sshx:
-<pre><code>
-Usage: sshx COMMAND [arg...]
+<pre><code>Usage: sshx COMMAND [arg...]
 
 a webrtc based ssh remote toolbox
                
@@ -146,21 +145,18 @@ Run 'sshx COMMAND --help' for more information on a command.
 
 <li>Daemon
 
-<pre><code>
-sshx daemon
+<pre><code>sshx daemon
 </code></pre>
 <strong>Note:</strong> Before you run any command of sshx, you must run sshx as a daemon first.</li>
 
 <li>List configure informations
 
-<pre><code>
-sshx list
+<pre><code>sshx list
 </code></pre></li>
 
 <li>Connect a remote device with ID or IP(domain)
 
-<pre><code>
-Usage: sshx connect [ -X ] [ -i ] [ -p ] ADDR
+<pre><code>Usage: sshx connect [ -X ] [ -i ] [ -p ] ADDR
 
 connect to remote host
 
@@ -175,8 +171,7 @@ Options:
 
 <li>Copy a file or directory just like ssh does
 
-<pre><code>
-Usage: sshx copy FROM TO
+<pre><code>Usage: sshx copy FROM TO
 
 copy files or directories to remote host
 
@@ -187,8 +182,7 @@ Arguments:
 
 <li>Proxy
 
-<pre><code>
-Usage: sshx proxy COMMAND [arg...]
+<pre><code>Usage: sshx proxy COMMAND [arg...]
 
 manage proxy
                
@@ -204,8 +198,7 @@ Run 'sshx proxy COMMAND --help' for more information on a command.
 
 <li>Copy ID
 
-<pre><code>
-Usage: sshx copy-id ADDR
+<pre><code>Usage: sshx copy-id ADDR
 
 copy public key to server
                
@@ -215,8 +208,7 @@ Arguments:
 
 <li>SSHFS
 
-<pre><code>
-Usage: sshx fs COMMAND [arg...]
+<pre><code>Usage: sshx fs COMMAND [arg...]
 
 sshfs filesystem
                
