@@ -3,10 +3,8 @@
 [![Build Status](https://travis-ci.com/suutaku/sshx.svg?branch=master)](https://travis-ci.com/suutaku/sshx)
 [![Go Report Card](https://goreportcard.com/badge/github.com/suutaku/sshx)](https://goreportcard.com/report/github.com/suutaku/sshx)
 
-
-ssh p2p tunneling service. An enhanced version of 
+SSH P2P tunneling service. An enhanced version of 
 `https://github.com/nobonobo/ssh-p2p.git`.
-
 
 ## Connection sequence
 
@@ -52,7 +50,7 @@ ssh p2p tunneling service. An enhanced version of
 * RTCDataChannel/WebRTC: [https://github.com/pion/webrtc/v3](https://github.com/pion/webrtc/v3)
 * Signaling server: [http://peer1.xxxxxxxx.com:8990](http://peer1.xxxxx.com:8990)
 
-Server is not stable, just for testing. **Please use your own signaling server on production**.
+The server is not stable and just for testing. **Please use your own signaling server on production**.
 
 ## Install
 
@@ -61,11 +59,13 @@ Server is not stable, just for testing. **Please use your own signaling server o
 `https://github.com/go-vgo/robotgo #Requirements`
 
 ### Signaling server
+
 ```bash
 go get -u github.com/suutaku/sshx/cmd/signaling
 ```
 
 ### SSHX
+
 ```bash
 go get -u github.com/suutaku/sshx/cmd/sshx
 ```
@@ -82,11 +82,11 @@ sudo ./build.sh install signaling ## both sshx and signaling server
 ```
 
 ### Windows
-I don't have Windows device so i don't know how to create and test install scripts, maybe some can write a script for windows user.
+I don't have a Windows device so I don't know how to create and test install scripts, maybe someone can write a script for Windows users.
 
 
 ## Configuration
-Configure file will created at first time at path: `$HOME/.sshx_config.json`. You can also set root path of sshx with `SSHX_HOME` environment value.
+Configure file will created for the first time at the path: `$HOME/.sshx_config.json`. You can also set the root path of SSHX with `SSHX_HOME` environment value.
 Default configure as below:
 
 ```json
@@ -106,26 +106,27 @@ Default configure as below:
   "signalingserveraddr": "http://signalingserver.xxxxx.com:8990"
 }
 ```
-* `locallistenaddr` : sshx listen address.
-* `localsshaddr`: server sshd  listen address.
+
+* `locallistenaddr`: SSHX listening address.
+* `localsshaddr`: SSHD listening address of server.
 * `rtcconf`: STUN server configure.
-* `signalingserveraddr`: signaling server address.
+* `signalingserveraddr`: Signaling server address.
 
 ## Usage
-* Signaling server
-Specify server listening port by environment variable **PORT**, default **8080**.
 
+### Signaling server
+
+Specify server listening port by environment variable **PORT**, default **8080**.
 ```bash
 export SSHX_SIGNALING_PORT=[port you want] #default port is 8080
 signaling
 ```
 
-* SSHX
+### SSHX
 
-Start sshx:
-
-```bash
-Usage: sshx COMMAND [arg...]
+<ul>
+<li>Start sshx:
+<pre><code>Usage: sshx COMMAND [arg...]
 
 a webrtc based ssh remote toolbox
                
@@ -139,25 +140,20 @@ Commands:
   status       get status
   fs           sshfs filesystem
                
-Run 'sshx COMMAND --help' for more information on a command.
-```
-Daemoon
+Run 'sshx COMMAND --help' for more information on a command.</code></pre></li>
 
-```bash
-sshx daemon
-```
-**Note:** befor you run any command of sshx, you must run sshx as a daemon first.
+<li>Daemon
 
-List configure informations
+<pre><code>sshx daemon</code></pre>
+<strong>Note:</strong> Before you run any command of sshx, you must run sshx as a daemon first.</li>
 
-```bash
-sshx list
-```
+<li>List configure informations
 
-Connect a remote device with ID or IP(domain)
+<pre><code>sshx list</code></pre></li>
 
-```bash
-Usage: sshx connect [ -X ] [ -i ] [ -p ] ADDR
+<li>Connect a remote device with ID or IP(domain)
+
+<pre><code>Usage: sshx connect [ -X ] [ -i ] [ -p ] ADDR
 
 connect to remote host
 
@@ -167,52 +163,45 @@ Arguments:
 Options:
   -X, --x11              using X11 opton, default false
   -i, --identification   a private path, default empty for ~/.ssh/id_rsa
-  -p                     remote host port (default "22")
-```
-Copy a file or dierctory just like ssh does
+  -p                     remote host port (default "22")</code></pre></li>
 
-```bash
-Usage: sshx copy FROM TO
+<li>Copy a file or directory just like ssh does
 
-cpy files or directories to remote host
+<pre><code>Usage: sshx copy FROM TO
+
+copy files or directories to remote host
 
 Arguments:
   FROM                   file or directory path which want to coy
-  TO                     des path
-```
+  TO                     des path</code></pre></li>
 
-Proxy
+<li>Proxy
 
-```bash
-Usage: sshx proxy COMMAND [arg...]
+<pre><code>Usage: sshx proxy COMMAND [arg...]
 
 manage proxy
                
 Commands:      
   start        start a proxy
                
-Run 'sshx proxy COMMAND --help' for more information on a command.
-```
+Run 'sshx proxy COMMAND --help' for more information on a command.</code></pre>
 
-VNC
+<li>VNC
 
-sshx contained a `noVNC` client which write with Javascript. To use client just access `http://vnc.sshx.wz` (not working with VPN environment) or `http://127.0.0.1` and input device ID in setting menu.
+<p>sshx contained a <code>noVNC</code> client which write with Javascript. To use client just access <code>http://vnc.sshx.wz</code> (not working with VPN environment) or <code>http://127.0.0.1</code> and input device ID in setting menu.</p></li>
 
-Copy ID
+<li>Copy ID
 
-```bash
-Usage: sshx copy-id ADDR
+<pre><code>Usage: sshx copy-id ADDR
 
 copy public key to server
                
 Arguments:     
-  ADDR         remote target address [username]@[host]:[port]
-```
+  ADDR         remote target address [username]@[host]:[port]</code></pre></li>
 
-SSHFS
+<li>SSHFS
 
-```bash
-Usage: sshx fs COMMAND [arg...]
+<pre><code>Usage: sshx fs COMMAND [arg...]
 
 sshfs filesystem
                
@@ -220,12 +209,12 @@ Commands:
   mount        mount a remote filesystem
   unmount      unmount a remote filesystem
                
-Run 'sshx fs COMMAND --help' for more information on a command.
-```
+Run 'sshx fs COMMAND --help' for more information on a command.</code></pre></li>
 
-Status
+<li>Status
 
-Show current connections
+<p>Show current connections</p></li>
+</ul>
 
 ## Appliction
 
@@ -233,10 +222,10 @@ Using sshx, you can write your own NAT-Traversal applications by implement `Impl
 
 ```golang
 type Impl interface {
-	// set implementation specifiy configure
+	// Set implementation specifiy configure
 	Init(ImplParam)
 
-  // return the application code, see pkg/types/types.go
+  // Return the application code, see pkg/types/types.go
 	Code() int32
 	// Writer of dialer
 	DialerWriter() io.Writer
@@ -257,17 +246,14 @@ type Impl interface {
 }
 ```
 
-basically, `Impl` can acts as a `Dialer` or `Responser`. A `Dialer` send an connection request to local node to tell it which application will used for this connection. 
-local node make a P2P connection to target device and `Responser` at target devie response your request. see more `pkg/impl/impl_ssh.go`.
+Basically, `Impl` can acts as a `Dialer` or `Responser`. A `Dialer` sends a connection request to the local node to tell it which application will used for this connection. 
 
+The local node makes a P2P connection to the target device and the `Responser` at the target device responds to your request. See more at `pkg/impl/impl_ssh.go`.
 
+## Features
 
-
-
-Features
-
-- [x] Connect devices directly like ssh client does
-- [x] Private key loggin
+- [x] Connect devices directly like the SSH client does
+- [x] Private key login
 - [x] X11 forwarding
 - [x] Connect devices behind NAT
 - [x] Copy file or directory like scp does
@@ -277,8 +263,6 @@ Features
 - [x] A simple signaling server implementation
 - [ ] Pure go (due the `github.com/go-vgo/robotgo`)
 - [x] Lunux system service supporting
-- [x] VS Code SSH remote suportting (use proxy way due the VS Code not an open source project)
+- [x] VS Code SSH remote supporting (use proxy way due the VS Code not being an open source project)
 - [x] VNC supporting (both vnc server and client)
-- [x] Ssh-fs supporting
-
-
+- [x] SSH-FS supporting
