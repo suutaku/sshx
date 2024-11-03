@@ -140,19 +140,16 @@ Commands:
   status       get status
   fs           sshfs filesystem
                
-Run 'sshx COMMAND --help' for more information on a command.
-</code></pre></li>
+Run 'sshx COMMAND --help' for more information on a command.</code></pre></li>
 
 <li>Daemon
 
-<pre><code>sshx daemon
-</code></pre>
+<pre><code>sshx daemon</code></pre>
 <strong>Note:</strong> Before you run any command of sshx, you must run sshx as a daemon first.</li>
 
 <li>List configure informations
 
-<pre><code>sshx list
-</code></pre></li>
+<pre><code>sshx list</code></pre></li>
 
 <li>Connect a remote device with ID or IP(domain)
 
@@ -166,8 +163,7 @@ Arguments:
 Options:
   -X, --x11              using X11 opton, default false
   -i, --identification   a private path, default empty for ~/.ssh/id_rsa
-  -p                     remote host port (default "22")
-</code></pre></li>
+  -p                     remote host port (default "22")</code></pre></li>
 
 <li>Copy a file or directory just like ssh does
 
@@ -177,8 +173,7 @@ copy files or directories to remote host
 
 Arguments:
   FROM                   file or directory path which want to coy
-  TO                     des path
-</code></pre></li>
+  TO                     des path</code></pre></li>
 
 <li>Proxy
 
@@ -189,8 +184,7 @@ manage proxy
 Commands:      
   start        start a proxy
                
-Run 'sshx proxy COMMAND --help' for more information on a command.
-</code></pre>
+Run 'sshx proxy COMMAND --help' for more information on a command.</code></pre>
 
 <li>VNC
 
@@ -203,8 +197,7 @@ Run 'sshx proxy COMMAND --help' for more information on a command.
 copy public key to server
                
 Arguments:     
-  ADDR         remote target address [username]@[host]:[port]
-</code></pre></li>
+  ADDR         remote target address [username]@[host]:[port]</code></pre></li>
 
 <li>SSHFS
 
@@ -216,8 +209,7 @@ Commands:
   mount        mount a remote filesystem
   unmount      unmount a remote filesystem
                
-Run 'sshx fs COMMAND --help' for more information on a command.
-</code></pre></li>
+Run 'sshx fs COMMAND --help' for more information on a command.</code></pre></li>
 
 <li>Status
 
