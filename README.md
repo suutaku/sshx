@@ -230,10 +230,10 @@ Using sshx, you can write your own NAT-Traversal applications by implement `Impl
 
 ```golang
 type Impl interface {
-	// set implementation specifiy configure
+	// Set implementation specifiy configure
 	Init(ImplParam)
 
-  // return the application code, see pkg/types/types.go
+  // Return the application code, see pkg/types/types.go
 	Code() int32
 	// Writer of dialer
 	DialerWriter() io.Writer
