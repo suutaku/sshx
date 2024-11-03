@@ -107,10 +107,10 @@ Default configure as below:
 }
 ```
 
-* `locallistenaddr`: sshx listening address.
-* `localsshaddr`: server sshd listening to address.
+* `locallistenaddr`: SSHX listening address.
+* `localsshaddr`: SSHD listening address of server.
 * `rtcconf`: STUN server configure.
-* `signalingserveraddr`: signaling server address.
+* `signalingserveraddr`: Signaling server address.
 
 ## Usage
 
