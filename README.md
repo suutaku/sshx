@@ -273,4 +273,4 @@ The local node makes a P2P connection to the target device and the `Responser` a
 - [x] Lunux system service supporting
 - [x] VS Code SSH remote supporting (use proxy way due the VS Code not being an open source project)
 - [x] VNC supporting (both vnc server and client)
-- [x] Ssh-fs supporting
+- [x] SSH-FS supporting
